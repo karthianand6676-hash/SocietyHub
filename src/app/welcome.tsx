@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, StyleSheet, Text, View} from 'react-native';
 
 export default function Index() {
   return (
@@ -13,8 +14,9 @@ export default function Index() {
         Manage your society, stay informed and connected.
       </Text>
 
-      <Pressable style={styles.button}>
-        <Text style={styles.buttonText}>Get Started</Text>
+      <Pressable style={styles.button}
+      onPress={() => router.push('/login')}>
+      <Text style={styles.buttonText}>Get Started</Text>
       </Pressable>
     </View>
   );
