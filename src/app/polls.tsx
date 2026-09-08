@@ -1,7 +1,106 @@
-import { StyleSheet, Text, View, Pressable, ScrollView } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  Pressable,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import { useState } from 'react';
 import { router } from 'expo-router';
 
+type Poll = {
+  id: number;
+  icon: string;
+  title: string;
+  question: string;
+  yesVotes: number;
+  noVotes: number;
+};
+
 export default function PollsScreen() {
+  const [polls, setPolls] = useState<Poll[]>([
+    {
+      id: 1,
+      icon: '🗳️',
+      title: 'Parking Area Improvement',
+      question: 'Should the society improve the parking area?',
+      yesVotes: 12,
+      noVotes: 5,
+    },
+    {
+      id: 2,
+      icon: '📊',
+      title: 'Security Improvement',
+      question: 'Should additional security cameras be installed?',
+      yesVotes: 18,
+      noVotes: 7,
+    },
+  ]);
+
+  const [selectedOptions, setSelectedOptions] = useState<{
+    [key: number]: 'Yes' | 'No' | null;
+  }>({
+    1: null,
+    2: null,
+  });
+
+  const [votedPolls, setVotedPolls] = useState<number[]>([]);
+
+  const selectOption = (pollId: number, option: 'Yes' | 'No') => {
+    if (votedPolls.includes(pollId)) {
+      return;
+    }
+
+    setSelectedOptions({
+      ...selectedOptions,
+      [pollId]: option,
+    });
+  };
+
+  const submitVote = (pollId: number) => {
+    const selected = selectedOptions[pollId];
+
+    if (!selected) {
+      Alert.alert(
+        'Select an option',
+        'Please select Yes or No before submitting your vote.',
+      );
+      return;
+    }
+
+    if (votedPolls.includes(pollId)) {
+      return;
+    }
+
+    setPolls(
+      polls.map((poll) => {
+        if (poll.id !== pollId) {
+          return poll;
+        }
+
+        return {
+          ...poll,
+          yesVotes:
+            selected === 'Yes'
+              ? poll.yesVotes + 1
+              : poll.yesVotes,
+          noVotes:
+            selected === 'No'
+              ? poll.noVotes + 1
+              : poll.noVotes,
+        };
+      }),
+    );
+
+    setVotedPolls([...votedPolls, pollId]);
+
+    Alert.alert(
+      'Vote Submitted',
+      `Your vote "${selected}" has been submitted successfully.`,
+    );
+  };
+
   return (
     <ScrollView style={styles.container}>
 
@@ -11,59 +110,151 @@ export default function PollsScreen() {
         Give your opinion on society matters
       </Text>
 
-      <View style={styles.card}>
-        <Text style={styles.icon}>🗳️</Text>
+      {polls.map((poll) => {
+        const selected = selectedOptions[poll.id];
+        const hasVoted = votedPolls.includes(poll.id);
 
-        <Text style={styles.cardTitle}>
-          Parking Area Improvement
-        </Text>
+        const totalVotes = poll.yesVotes + poll.noVotes;
 
-        <Text style={styles.question}>
-          Should the society improve the parking area?
-        </Text>
+        const yesPercentage =
+          totalVotes === 0
+            ? 0
+            : Math.round((poll.yesVotes / totalVotes) * 100);
 
-        <Pressable style={styles.option}>
-          <Text style={styles.optionText}>Yes</Text>
-        </Pressable>
+        const noPercentage =
+          totalVotes === 0
+            ? 0
+            : Math.round((poll.noVotes / totalVotes) * 100);
 
-        <Pressable style={styles.option}>
-          <Text style={styles.optionText}>No</Text>
-        </Pressable>
+        return (
+          <View style={styles.card} key={poll.id}>
 
-        <Pressable style={styles.voteButton}>
-          <Text style={styles.voteText}>Submit Vote</Text>
-        </Pressable>
-      </View>
+            <Text style={styles.icon}>
+              {poll.icon}
+            </Text>
 
-      <View style={styles.card}>
-        <Text style={styles.icon}>📊</Text>
+            <Text style={styles.cardTitle}>
+              {poll.title}
+            </Text>
 
-        <Text style={styles.cardTitle}>
-          Security Improvement
-        </Text>
+            <Text style={styles.question}>
+              {poll.question}
+            </Text>
 
-        <Text style={styles.question}>
-          Should additional security cameras be installed?
-        </Text>
+            {/* YES */}
+            <Pressable
+              style={[
+                styles.option,
+                selected === 'Yes' && styles.selectedOption,
+              ]}
+              onPress={() => selectOption(poll.id, 'Yes')}
+            >
+              <Text
+                style={[
+                  styles.optionText,
+                  selected === 'Yes' && styles.selectedOptionText,
+                ]}
+              >
+                Yes
+              </Text>
+            </Pressable>
 
-        <Pressable style={styles.option}>
-          <Text style={styles.optionText}>Yes</Text>
-        </Pressable>
+            {/* NO */}
+            <Pressable
+              style={[
+                styles.option,
+                selected === 'No' && styles.selectedOption,
+              ]}
+              onPress={() => selectOption(poll.id, 'No')}
+            >
+              <Text
+                style={[
+                  styles.optionText,
+                  selected === 'No' && styles.selectedOptionText,
+                ]}
+              >
+                No
+              </Text>
+            </Pressable>
 
-        <Pressable style={styles.option}>
-          <Text style={styles.optionText}>No</Text>
-        </Pressable>
+            {/* SUBMIT */}
+            {!hasVoted ? (
+              <Pressable
+                style={styles.voteButton}
+                onPress={() => submitVote(poll.id)}
+              >
+                <Text style={styles.voteText}>
+                  Submit Vote
+                </Text>
+              </Pressable>
+            ) : (
+              <View style={styles.votedBadge}>
+                <Text style={styles.votedText}>
+                  ✓ Vote Submitted
+                </Text>
+              </View>
+            )}
 
-        <Pressable style={styles.voteButton}>
-          <Text style={styles.voteText}>Submit Vote</Text>
-        </Pressable>
-      </View>
+            {/* RESULTS */}
+            {hasVoted && (
+              <View style={styles.resultsContainer}>
+
+                <Text style={styles.resultsTitle}>
+                  Current Results
+                </Text>
+
+                <View style={styles.resultRow}>
+                  <Text style={styles.resultLabel}>
+                    Yes
+                  </Text>
+
+                  <Text style={styles.resultValue}>
+                    {poll.yesVotes} votes ({yesPercentage}%)
+                  </Text>
+                </View>
+
+                <View style={styles.resultBarBackground}>
+                  <View
+                    style={[
+                      styles.resultBar,
+                      { width: `${yesPercentage}%` },
+                    ]}
+                  />
+                </View>
+
+                <View style={styles.resultRow}>
+                  <Text style={styles.resultLabel}>
+                    No
+                  </Text>
+
+                  <Text style={styles.resultValue}>
+                    {poll.noVotes} votes ({noPercentage}%)
+                  </Text>
+                </View>
+
+                <View style={styles.resultBarBackground}>
+                  <View
+                    style={[
+                      styles.resultBar,
+                      { width: `${noPercentage}%` },
+                    ]}
+                  />
+                </View>
+
+              </View>
+            )}
+
+          </View>
+        );
+      })}
 
       <Pressable
         style={styles.backButton}
         onPress={() => router.back()}
       >
-        <Text style={styles.backText}>← Back</Text>
+        <Text style={styles.backText}>
+          ← Back
+        </Text>
       </Pressable>
 
     </ScrollView>
@@ -127,11 +318,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
+  selectedOption: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#2563EB',
+  },
+
   optionText: {
     fontSize: 16,
     color: '#334155',
     fontWeight: '600',
     textAlign: 'center',
+  },
+
+  selectedOptionText: {
+    color: '#2563EB',
+    fontWeight: '700',
   },
 
   voteButton: {
@@ -147,6 +348,66 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+
+  votedBadge: {
+    height: 50,
+    borderRadius: 12,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+
+  votedText: {
+    color: '#16A34A',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  resultsContainer: {
+    marginTop: 25,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+
+  resultsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 18,
+  },
+
+  resultRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+
+  resultLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#334155',
+  },
+
+  resultValue: {
+    fontSize: 14,
+    color: '#64748B',
+  },
+
+  resultBarBackground: {
+    height: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 10,
+    marginBottom: 15,
+    overflow: 'hidden',
+  },
+
+  resultBar: {
+    height: 8,
+    backgroundColor: '#2563EB',
+    borderRadius: 10,
   },
 
   backButton: {
