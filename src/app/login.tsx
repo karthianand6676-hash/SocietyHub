@@ -34,9 +34,10 @@ export default function LoginScreen() {
           secureTextEntry
         />
 
-        <Pressable style={styles.button}>
-          <Text style={styles.buttonText}>Login</Text>
-        </Pressable>
+        <Pressable style={styles.button}
+  onPress={() => router.replace('/(tabs)/home')}>
+  <Text style={styles.buttonText}>Login</Text>
+</Pressable>
       </View>
 
       <View style={styles.registerContainer}>
