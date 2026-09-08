@@ -17,8 +17,7 @@ export default function FacilitiesScreen() {
         <Text style={styles.cardSubtitle}>
           Available for meetings and functions
         </Text>
-
-        <Pressable style={styles.button}>
+        <Pressable style={styles.button}onPress={() =>router.push({pathname: '/booking',params: { facility: 'Community Hall' }, })}>
           <Text style={styles.buttonText}>Book Now</Text>
         </Pressable>
       </View>
@@ -30,8 +29,10 @@ export default function FacilitiesScreen() {
           Enjoy the society swimming pool
         </Text>
 
-        <Pressable style={styles.button}>
-          <Text style={styles.buttonText}>Book Now</Text>
+        <Pressable style={styles.button} onPress={() =>router.push({
+      pathname: '/booking',
+      params: { facility: 'Swimming Pool' },})}>
+            <Text style={styles.buttonText}>Book Now</Text>
         </Pressable>
       </View>
 
@@ -42,8 +43,14 @@ export default function FacilitiesScreen() {
           Fitness facility for residents
         </Text>
 
-        <Pressable style={styles.button}>
-          <Text style={styles.buttonText}>Book Now</Text>
+        <Pressable
+        style={styles.button}
+        onPress={() =>
+            router.push({
+            pathname: '/booking',
+            params: { facility: 'Gym' },
+            })}>
+            <Text style={styles.buttonText}>Book Now</Text>
         </Pressable>
       </View>
 
@@ -51,7 +58,7 @@ export default function FacilitiesScreen() {
         style={styles.backButton}
         onPress={() => router.back()}
       >
-        <Text style={styles.backText}>← Back</Text>
+            <Text style={styles.backText}>← Back</Text>
       </Pressable>
 
     </ScrollView>

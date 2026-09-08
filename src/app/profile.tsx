@@ -1,7 +1,20 @@
 import { StyleSheet, Text, View, Pressable, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 
 export default function ProfileScreen() {
+  const params = useLocalSearchParams();
+
+  const name =
+    typeof params.name === 'string' ? params.name : 'Resident';
+
+  const email =
+    typeof params.email === 'string'
+      ? params.email
+      : 'resident@example.com';
+
+  const flat =
+    typeof params.flat === 'string' ? params.flat : 'A-203';
+
   return (
     <ScrollView style={styles.container}>
 
@@ -14,23 +27,35 @@ export default function ProfileScreen() {
       <View style={styles.profileCard}>
         <Text style={styles.avatar}>👤</Text>
 
-        <Text style={styles.name}>Resident</Text>
+        <Text style={styles.name}>{name}</Text>
 
         <Text style={styles.role}>Society Resident</Text>
       </View>
 
       <View style={styles.infoCard}>
         <Text style={styles.label}>Full Name</Text>
-        <Text style={styles.value}>Resident</Text>
+        <Text style={styles.value}>{name}</Text>
 
         <Text style={styles.label}>Email</Text>
-        <Text style={styles.value}>resident@example.com</Text>
+        <Text style={styles.value}>{email}</Text>
 
         <Text style={styles.label}>Flat Number</Text>
-        <Text style={styles.value}>A-203</Text>
+        <Text style={styles.value}>{flat}</Text>
       </View>
 
-      <Pressable style={styles.editButton}>
+      <Pressable
+        style={styles.editButton}
+        onPress={() =>
+          router.push({
+            pathname: '/edit-profile',
+            params: {
+              name,
+              email,
+              flat,
+            },
+          })
+        }
+      >
         <Text style={styles.buttonText}>Edit Profile</Text>
       </Pressable>
 
