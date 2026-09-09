@@ -6,8 +6,9 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
+import { getData, saveData } from '../data/storage';
 
 type Poll = {
   id: number;
@@ -18,36 +19,74 @@ type Poll = {
   noVotes: number;
 };
 
-export default function PollsScreen() {
-  const [polls, setPolls] = useState<Poll[]>([
-    {
-      id: 1,
-      icon: '🗳️',
-      title: 'Parking Area Improvement',
-      question: 'Should the society improve the parking area?',
-      yesVotes: 12,
-      noVotes: 5,
-    },
-    {
-      id: 2,
-      icon: '📊',
-      title: 'Security Improvement',
-      question: 'Should additional security cameras be installed?',
-      yesVotes: 18,
-      noVotes: 7,
-    },
-  ]);
+const POLLS_KEY = 'polls';
+const SELECTED_OPTIONS_KEY = 'selectedPollOptions';
+const VOTED_POLLS_KEY = 'votedPolls';
 
+const initialPolls: Poll[] = [
+  {
+    id: 1,
+    icon: '🗳️',
+    title: 'Parking Area Improvement',
+    question: 'Should the society improve the parking area?',
+    yesVotes: 12,
+    noVotes: 5,
+  },
+  {
+    id: 2,
+    icon: '📊',
+    title: 'Security Improvement',
+    question: 'Should additional security cameras be installed?',
+    yesVotes: 18,
+    noVotes: 7,
+  },
+];
+
+export default function PollsScreen() {
+  const [polls, setPolls] = useState<Poll[]>([]);
+  
   const [selectedOptions, setSelectedOptions] = useState<{
     [key: number]: 'Yes' | 'No' | null;
-  }>({
-    1: null,
-    2: null,
-  });
+  }>({});
 
   const [votedPolls, setVotedPolls] = useState<number[]>([]);
 
-  const selectOption = (pollId: number, option: 'Yes' | 'No') => {
+  // Load saved poll data
+  useEffect(() => {
+    const loadPollData = async () => {
+      const savedPolls = await getData<Poll[]>(POLLS_KEY);
+
+      const savedSelectedOptions =
+        await getData<{
+          [key: number]: 'Yes' | 'No' | null;
+        }>(SELECTED_OPTIONS_KEY);
+
+      const savedVotedPolls =
+        await getData<number[]>(VOTED_POLLS_KEY);
+
+      if (savedPolls) {
+        setPolls(savedPolls);
+      } else {
+        setPolls(initialPolls);
+        await saveData(POLLS_KEY, initialPolls);
+      }
+
+      if (savedSelectedOptions) {
+        setSelectedOptions(savedSelectedOptions);
+      }
+
+      if (savedVotedPolls) {
+        setVotedPolls(savedVotedPolls);
+      }
+    };
+
+    loadPollData();
+  }, []);
+
+  const selectOption = (
+    pollId: number,
+    option: 'Yes' | 'No',
+  ) => {
     if (votedPolls.includes(pollId)) {
       return;
     }
@@ -58,7 +97,7 @@ export default function PollsScreen() {
     });
   };
 
-  const submitVote = (pollId: number) => {
+  const submitVote = async (pollId: number) => {
     const selected = selectedOptions[pollId];
 
     if (!selected) {
@@ -73,27 +112,51 @@ export default function PollsScreen() {
       return;
     }
 
-    setPolls(
-      polls.map((poll) => {
-        if (poll.id !== pollId) {
-          return poll;
-        }
+    const updatedPolls = polls.map((poll) => {
+      if (poll.id !== pollId) {
+        return poll;
+      }
 
-        return {
-          ...poll,
-          yesVotes:
-            selected === 'Yes'
-              ? poll.yesVotes + 1
-              : poll.yesVotes,
-          noVotes:
-            selected === 'No'
-              ? poll.noVotes + 1
-              : poll.noVotes,
-        };
-      }),
+      return {
+        ...poll,
+        yesVotes:
+          selected === 'Yes'
+            ? poll.yesVotes + 1
+            : poll.yesVotes,
+        noVotes:
+          selected === 'No'
+            ? poll.noVotes + 1
+            : poll.noVotes,
+      };
+    });
+
+    const updatedVotedPolls = [
+      ...votedPolls,
+      pollId,
+    ];
+
+    const updatedSelectedOptions = {
+      ...selectedOptions,
+      [pollId]: selected,
+    };
+
+    // Update screen
+    setPolls(updatedPolls);
+    setVotedPolls(updatedVotedPolls);
+    setSelectedOptions(updatedSelectedOptions);
+
+    // Save permanently
+    await saveData(POLLS_KEY, updatedPolls);
+
+    await saveData(
+      VOTED_POLLS_KEY,
+      updatedVotedPolls,
     );
 
-    setVotedPolls([...votedPolls, pollId]);
+    await saveData(
+      SELECTED_OPTIONS_KEY,
+      updatedSelectedOptions,
+    );
 
     Alert.alert(
       'Vote Submitted',
@@ -103,7 +166,6 @@ export default function PollsScreen() {
 
   return (
     <ScrollView style={styles.container}>
-
       <Text style={styles.title}>Polls</Text>
 
       <Text style={styles.subtitle}>
@@ -114,21 +176,28 @@ export default function PollsScreen() {
         const selected = selectedOptions[poll.id];
         const hasVoted = votedPolls.includes(poll.id);
 
-        const totalVotes = poll.yesVotes + poll.noVotes;
+        const totalVotes =
+          poll.yesVotes + poll.noVotes;
 
         const yesPercentage =
           totalVotes === 0
             ? 0
-            : Math.round((poll.yesVotes / totalVotes) * 100);
+            : Math.round(
+                (poll.yesVotes / totalVotes) * 100,
+              );
 
         const noPercentage =
           totalVotes === 0
             ? 0
-            : Math.round((poll.noVotes / totalVotes) * 100);
+            : Math.round(
+                (poll.noVotes / totalVotes) * 100,
+              );
 
         return (
-          <View style={styles.card} key={poll.id}>
-
+          <View
+            style={styles.card}
+            key={poll.id}
+          >
             <Text style={styles.icon}>
               {poll.icon}
             </Text>
@@ -145,14 +214,19 @@ export default function PollsScreen() {
             <Pressable
               style={[
                 styles.option,
-                selected === 'Yes' && styles.selectedOption,
+                selected === 'Yes' &&
+                  styles.selectedOption,
               ]}
-              onPress={() => selectOption(poll.id, 'Yes')}
+              onPress={() =>
+                selectOption(poll.id, 'Yes')
+              }
+              disabled={hasVoted}
             >
               <Text
                 style={[
                   styles.optionText,
-                  selected === 'Yes' && styles.selectedOptionText,
+                  selected === 'Yes' &&
+                    styles.selectedOptionText,
                 ]}
               >
                 Yes
@@ -163,14 +237,19 @@ export default function PollsScreen() {
             <Pressable
               style={[
                 styles.option,
-                selected === 'No' && styles.selectedOption,
+                selected === 'No' &&
+                  styles.selectedOption,
               ]}
-              onPress={() => selectOption(poll.id, 'No')}
+              onPress={() =>
+                selectOption(poll.id, 'No')
+              }
+              disabled={hasVoted}
             >
               <Text
                 style={[
                   styles.optionText,
-                  selected === 'No' && styles.selectedOptionText,
+                  selected === 'No' &&
+                    styles.selectedOptionText,
                 ]}
               >
                 No
@@ -181,7 +260,9 @@ export default function PollsScreen() {
             {!hasVoted ? (
               <Pressable
                 style={styles.voteButton}
-                onPress={() => submitVote(poll.id)}
+                onPress={() =>
+                  submitVote(poll.id)
+                }
               >
                 <Text style={styles.voteText}>
                   Submit Vote
@@ -198,7 +279,6 @@ export default function PollsScreen() {
             {/* RESULTS */}
             {hasVoted && (
               <View style={styles.resultsContainer}>
-
                 <Text style={styles.resultsTitle}>
                   Current Results
                 </Text>
@@ -209,15 +289,20 @@ export default function PollsScreen() {
                   </Text>
 
                   <Text style={styles.resultValue}>
-                    {poll.yesVotes} votes ({yesPercentage}%)
+                    {poll.yesVotes} votes (
+                    {yesPercentage}%)
                   </Text>
                 </View>
 
-                <View style={styles.resultBarBackground}>
+                <View
+                  style={styles.resultBarBackground}
+                >
                   <View
                     style={[
                       styles.resultBar,
-                      { width: `${yesPercentage}%` },
+                      {
+                        width: `${yesPercentage}%`,
+                      },
                     ]}
                   />
                 </View>
@@ -228,22 +313,25 @@ export default function PollsScreen() {
                   </Text>
 
                   <Text style={styles.resultValue}>
-                    {poll.noVotes} votes ({noPercentage}%)
+                    {poll.noVotes} votes (
+                    {noPercentage}%)
                   </Text>
                 </View>
 
-                <View style={styles.resultBarBackground}>
+                <View
+                  style={styles.resultBarBackground}
+                >
                   <View
                     style={[
                       styles.resultBar,
-                      { width: `${noPercentage}%` },
+                      {
+                        width: `${noPercentage}%`,
+                      },
                     ]}
                   />
                 </View>
-
               </View>
             )}
-
           </View>
         );
       })}
@@ -256,7 +344,6 @@ export default function PollsScreen() {
           ← Back
         </Text>
       </Pressable>
-
     </ScrollView>
   );
 }

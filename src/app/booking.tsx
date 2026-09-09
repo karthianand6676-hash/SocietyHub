@@ -9,7 +9,17 @@ import {
 } from 'react-native';
 
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getData, saveData } from '../data/storage';
+
+type Booking = {
+  id: string;
+  facility: string;
+  date: string;
+  time: string;
+};
+
+const BOOKINGS_KEY = 'facilityBookings';
 
 export default function BookingScreen() {
   const params = useLocalSearchParams();
@@ -21,31 +31,81 @@ export default function BookingScreen() {
 
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
+  const [bookings, setBookings] = useState<Booking[]>([]);
 
-  const confirmBooking = () => {
-    if (!date || !time) {
+  // Load saved bookings
+  useEffect(() => {
+    const loadBookings = async () => {
+      const savedBookings =
+        await getData<Booking[]>(BOOKINGS_KEY);
+
+      if (savedBookings) {
+        setBookings(savedBookings);
+      }
+    };
+
+    loadBookings();
+  }, []);
+
+  const confirmBooking = async () => {
+    if (!date.trim() || !time.trim()) {
       Alert.alert(
         'Missing Details',
-        'Please enter both date and time.'
+        'Please enter both date and time.',
       );
       return;
     }
 
+    // Check for duplicate booking
+    const alreadyBooked = bookings.some(
+      (booking) =>
+        booking.facility === facility &&
+        booking.date.toLowerCase() ===
+          date.trim().toLowerCase() &&
+        booking.time.toLowerCase() ===
+          time.trim().toLowerCase(),
+    );
+
+    if (alreadyBooked) {
+      Alert.alert(
+        'Already Booked',
+        `You already have a booking for ${facility} at this date and time.`,
+      );
+      return;
+    }
+
+    const newBooking: Booking = {
+      id: `BOOK-${Date.now()}`,
+      facility,
+      date: date.trim(),
+      time: time.trim(),
+    };
+
+    const updatedBookings = [
+      newBooking,
+      ...bookings,
+    ];
+
+    // Update screen
+    setBookings(updatedBookings);
+
+    // Save permanently
+    await saveData(
+      BOOKINGS_KEY,
+      updatedBookings,
+    );
+
+    setDate('');
+    setTime('');
+
     Alert.alert(
       'Booking Confirmed',
-      `${facility} has been booked successfully.\n\nDate: ${date}\nTime: ${time}`,
-      [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]
+      `${facility} has been booked successfully.\n\nDate: ${newBooking.date}\nTime: ${newBooking.time}`,
     );
   };
 
   return (
     <ScrollView style={styles.container}>
-
       <Text style={styles.title}>Book Facility</Text>
 
       <Text style={styles.subtitle}>
@@ -53,7 +113,6 @@ export default function BookingScreen() {
       </Text>
 
       <View style={styles.facilityCard}>
-
         <Text style={styles.icon}>🏢</Text>
 
         <Text style={styles.facilityTitle}>
@@ -63,11 +122,9 @@ export default function BookingScreen() {
         <Text style={styles.facilitySubtitle}>
           Select your preferred date and time
         </Text>
-
       </View>
 
       <View style={styles.form}>
-
         <Text style={styles.label}>Date</Text>
 
         <TextInput
@@ -96,16 +153,52 @@ export default function BookingScreen() {
             Confirm Booking
           </Text>
         </Pressable>
-
-        <Pressable
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.backText}>← Back</Text>
-        </Pressable>
-
       </View>
 
+      {/* Saved Bookings */}
+      {bookings.length > 0 && (
+        <View style={styles.bookingsSection}>
+          <Text style={styles.sectionTitle}>
+            My Bookings
+          </Text>
+
+          {bookings.map((booking) => (
+            <View
+              style={styles.bookingCard}
+              key={booking.id}
+            >
+              <Text style={styles.bookingFacility}>
+                🏢 {booking.facility}
+              </Text>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.bookingDetail}>
+                📅 {booking.date}
+              </Text>
+
+              <Text style={styles.bookingDetail}>
+                🕐 {booking.time}
+              </Text>
+
+              <View style={styles.confirmedBadge}>
+                <Text style={styles.confirmedText}>
+                  ✓ Booking Confirmed
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <Pressable
+        style={styles.backButton}
+        onPress={() => router.back()}
+      >
+        <Text style={styles.backText}>
+          ← Back
+        </Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -194,6 +287,60 @@ const styles = StyleSheet.create({
   confirmText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '700',
+  },
+
+  bookingsSection: {
+    marginTop: 35,
+  },
+
+  sectionTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 18,
+  },
+
+  bookingCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 20,
+    padding: 22,
+    marginBottom: 16,
+  },
+
+  bookingFacility: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 16,
+  },
+
+  bookingDetail: {
+    fontSize: 16,
+    color: '#475569',
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+
+  confirmedBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#DCFCE7',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginTop: 8,
+  },
+
+  confirmedText: {
+    color: '#16A34A',
+    fontSize: 14,
     fontWeight: '700',
   },
 

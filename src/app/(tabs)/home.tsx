@@ -4,10 +4,59 @@ import {
   StyleSheet,
   Text,
   View,
+  Alert,
 } from 'react-native';
-import { router } from 'expo-router';
+
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { getData, removeData } from '../../data/storage';
+
+type ProfileData = {
+  name: string;
+  email: string;
+  flat: string;
+};
+
+const PROFILE_KEY = 'profileData';
+const LOGIN_KEY = 'isLoggedIn';
 
 export default function HomeScreen() {
+  const [profile, setProfile] = useState<ProfileData>({
+    name: 'Karthikeyan',
+    email: 'resident@example.com',
+    flat: '2644',
+  });
+
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  // Load profile every time Home screen becomes active
+  useFocusEffect(
+    useCallback(() => {
+      const loadProfile = async () => {
+        const savedProfile =
+          await getData<ProfileData>(PROFILE_KEY);
+
+        if (savedProfile) {
+          setProfile(savedProfile);
+        }
+      };
+
+      loadProfile();
+    }, []),
+  );
+
+  const handleLogout = async () => {
+    if (loggingOut) {
+      return;
+    }
+
+    setLoggingOut(true);
+
+    await removeData(LOGIN_KEY);
+
+    router.replace('/login');
+  };
+
   return (
     <ScrollView
       style={styles.container}
@@ -16,22 +65,34 @@ export default function HomeScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Welcome back 👋</Text>
-          <Text style={styles.name}>Karthikeyan</Text>
-          <Text style={styles.flat}>Flat 2644</Text>
+          <Text style={styles.greeting}>
+            Welcome back 👋
+          </Text>
+
+          <Text style={styles.name}>
+            {profile.name}
+          </Text>
+
+          <Text style={styles.flat}>
+            Flat {profile.flat}
+          </Text>
         </View>
 
         <Pressable
           style={styles.profileButton}
           onPress={() => router.push('/profile')}
         >
-          <Text style={styles.profileText}>👤</Text>
+          <Text style={styles.profileText}>
+            👤
+          </Text>
         </Pressable>
       </View>
 
       {/* Society Card */}
       <View style={styles.societyCard}>
-        <Text style={styles.societyTitle}>SocietyHub</Text>
+        <Text style={styles.societyTitle}>
+          SocietyHub
+        </Text>
 
         <Text style={styles.societySubtitle}>
           Your community, connected.
@@ -46,38 +107,71 @@ export default function HomeScreen() {
       </View>
 
       {/* Quick Stats */}
-      <Text style={styles.sectionTitle}>Your Society</Text>
+      <Text style={styles.sectionTitle}>
+        Your Society
+      </Text>
 
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
-          <Text style={styles.statIcon}>📢</Text>
-          <Text style={styles.statNumber}>3</Text>
-          <Text style={styles.statLabel}>Updates</Text>
+          <Text style={styles.statIcon}>
+            📢
+          </Text>
+
+          <Text style={styles.statNumber}>
+            3
+          </Text>
+
+          <Text style={styles.statLabel}>
+            Updates
+          </Text>
         </View>
 
         <View style={styles.statCard}>
-          <Text style={styles.statIcon}>📅</Text>
-          <Text style={styles.statNumber}>3</Text>
-          <Text style={styles.statLabel}>Events</Text>
+          <Text style={styles.statIcon}>
+            📅
+          </Text>
+
+          <Text style={styles.statNumber}>
+            3
+          </Text>
+
+          <Text style={styles.statLabel}>
+            Events
+          </Text>
         </View>
 
         <View style={styles.statCard}>
-          <Text style={styles.statIcon}>🏢</Text>
-          <Text style={styles.statNumber}>3</Text>
-          <Text style={styles.statLabel}>Facilities</Text>
+          <Text style={styles.statIcon}>
+            🏢
+          </Text>
+
+          <Text style={styles.statNumber}>
+            3
+          </Text>
+
+          <Text style={styles.statLabel}>
+            Facilities
+          </Text>
         </View>
       </View>
 
       {/* Quick Access */}
-      <Text style={styles.sectionTitle}>Quick Access</Text>
+      <Text style={styles.sectionTitle}>
+        Quick Access
+      </Text>
 
       <View style={styles.grid}>
 
+        {/* Announcements */}
         <Pressable
           style={styles.card}
-          onPress={() => router.push('/announcment')}
+          onPress={() =>
+            router.push('/announcment')
+          }
         >
-          <Text style={styles.icon}>📢</Text>
+          <Text style={styles.icon}>
+            📢
+          </Text>
 
           <Text style={styles.cardTitle}>
             Announcements
@@ -88,11 +182,16 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
 
+        {/* Complaints */}
         <Pressable
           style={styles.card}
-          onPress={() => router.push('/complaints')}
+          onPress={() =>
+            router.push('/complaints')
+          }
         >
-          <Text style={styles.icon}>📝</Text>
+          <Text style={styles.icon}>
+            📝
+          </Text>
 
           <Text style={styles.cardTitle}>
             Complaints
@@ -103,11 +202,16 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
 
+        {/* Events */}
         <Pressable
           style={styles.card}
-          onPress={() => router.push('/events')}
+          onPress={() =>
+            router.push('/events')
+          }
         >
-          <Text style={styles.icon}>📅</Text>
+          <Text style={styles.icon}>
+            📅
+          </Text>
 
           <Text style={styles.cardTitle}>
             Events
@@ -118,11 +222,16 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
 
+        {/* Facilities */}
         <Pressable
           style={styles.card}
-          onPress={() => router.push('/facilities')}
+          onPress={() =>
+            router.push('/facilities')
+          }
         >
-          <Text style={styles.icon}>🏢</Text>
+          <Text style={styles.icon}>
+            🏢
+          </Text>
 
           <Text style={styles.cardTitle}>
             Facilities
@@ -133,11 +242,16 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
 
+        {/* Polls */}
         <Pressable
           style={styles.card}
-          onPress={() => router.push('/polls')}
+          onPress={() =>
+            router.push('/polls')
+          }
         >
-          <Text style={styles.icon}>🗳️</Text>
+          <Text style={styles.icon}>
+            🗳️
+          </Text>
 
           <Text style={styles.cardTitle}>
             Polls
@@ -148,11 +262,16 @@ export default function HomeScreen() {
           </Text>
         </Pressable>
 
+        {/* Profile */}
         <Pressable
           style={styles.card}
-          onPress={() => router.push('/profile')}
+          onPress={() =>
+            router.push('/profile')
+          }
         >
-          <Text style={styles.icon}>👤</Text>
+          <Text style={styles.icon}>
+            👤
+          </Text>
 
           <Text style={styles.cardTitle}>
             My Profile
@@ -172,17 +291,26 @@ export default function HomeScreen() {
         </Text>
 
         <Pressable
-          onPress={() => router.push('/announcment')}
+          onPress={() =>
+            router.push('/announcment')
+          }
         >
-          <Text style={styles.viewText}>View All</Text>
+          <Text style={styles.viewText}>
+            View All
+          </Text>
         </Pressable>
       </View>
 
+      {/* Update 1 */}
       <Pressable
         style={styles.updateCard}
-        onPress={() => router.push('/announcment')}
+        onPress={() =>
+          router.push('/announcment')
+        }
       >
-        <Text style={styles.updateIcon}>📢</Text>
+        <Text style={styles.updateIcon}>
+          📢
+        </Text>
 
         <View style={styles.updateContent}>
           <Text style={styles.updateTitle}>
@@ -199,11 +327,16 @@ export default function HomeScreen() {
         </View>
       </Pressable>
 
+      {/* Update 2 */}
       <Pressable
         style={styles.updateCard}
-        onPress={() => router.push('/announcment')}
+        onPress={() =>
+          router.push('/announcment')
+        }
       >
-        <Text style={styles.updateIcon}>🔧</Text>
+        <Text style={styles.updateIcon}>
+          🔧
+        </Text>
 
         <View style={styles.updateContent}>
           <Text style={styles.updateTitle}>
@@ -218,6 +351,32 @@ export default function HomeScreen() {
             07 Sept 2026
           </Text>
         </View>
+      </Pressable>
+
+      {/* Logout */}
+      <Pressable
+        style={styles.logoutButton}
+        onPress={() => {
+          Alert.alert(
+            'Logout',
+            'Are you sure you want to logout?',
+            [
+              {
+                text: 'Cancel',
+                style: 'cancel',
+              },
+              {
+                text: 'Logout',
+                style: 'destructive',
+                onPress: handleLogout,
+              },
+            ],
+          );
+        }}
+      >
+        <Text style={styles.logoutText}>
+          Logout
+        </Text>
       </Pressable>
 
       <View style={styles.bottomSpace} />
@@ -431,6 +590,23 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     marginTop: 8,
     fontWeight: '600',
+  },
+
+  logoutButton: {
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 15,
+  },
+
+  logoutText: {
+    color: '#DC2626',
+    fontSize: 16,
+    fontWeight: '700',
   },
 
   bottomSpace: {

@@ -5,43 +5,111 @@ import {
   View,
   Pressable,
   ScrollView,
+  Alert,
 } from 'react-native';
 
-import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { getData, saveData } from '../data/storage';
+
+type ProfileData = {
+  name: string;
+  email: string;
+  flat: string;
+};
+
+const PROFILE_KEY = 'profileData';
+
+const defaultProfile: ProfileData = {
+  name: 'Karthikeyan',
+  email: 'resident@example.com',
+  flat: '2644',
+};
 
 export default function EditProfileScreen() {
-  const params = useLocalSearchParams();
-
   const [name, setName] = useState(
-    typeof params.name === 'string' ? params.name : 'Resident'
+    defaultProfile.name,
   );
 
   const [email, setEmail] = useState(
-    typeof params.email === 'string'
-      ? params.email
-      : 'resident@example.com'
+    defaultProfile.email,
   );
 
   const [flat, setFlat] = useState(
-    typeof params.flat === 'string' ? params.flat : 'A-203'
+    defaultProfile.flat,
   );
 
-  const saveProfile = () => {
-    router.replace({
-      pathname: '/profile',
-      params: {
-        name,
-        email,
-        flat,
-      },
-    });
+  const [loading, setLoading] = useState(true);
+
+  // Load saved profile
+  useEffect(() => {
+    const loadProfile = async () => {
+      const savedProfile =
+        await getData<ProfileData>(PROFILE_KEY);
+
+      if (savedProfile) {
+        setName(savedProfile.name);
+        setEmail(savedProfile.email);
+        setFlat(savedProfile.flat);
+      }
+
+      setLoading(false);
+    };
+
+    loadProfile();
+  }, []);
+
+  const saveProfile = async () => {
+    if (loading) {
+      return;
+    }
+
+    if (
+      !name.trim() ||
+      !email.trim() ||
+      !flat.trim()
+    ) {
+      Alert.alert(
+        'Missing Details',
+        'Please fill in all profile details.',
+      );
+      return;
+    }
+
+    const updatedProfile: ProfileData = {
+      name: name.trim(),
+      email: email.trim(),
+      flat: flat.trim(),
+    };
+
+    // Save permanently
+    await saveData(
+      PROFILE_KEY,
+      updatedProfile,
+    );
+
+    Alert.alert(
+      'Profile Updated',
+      'Your profile has been updated successfully.',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            router.replace('/profile');
+          },
+        },
+      ],
+    );
   };
 
   return (
-    <ScrollView style={styles.container}>
-
-      <Text style={styles.title}>Edit Profile</Text>
+    <ScrollView
+      style={styles.container}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={styles.title}>
+        Edit Profile
+      </Text>
 
       <Text style={styles.subtitle}>
         Update your account details
@@ -49,7 +117,10 @@ export default function EditProfileScreen() {
 
       <View style={styles.form}>
 
-        <Text style={styles.label}>Full Name</Text>
+        {/* Full Name */}
+        <Text style={styles.label}>
+          Full Name
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -57,9 +128,13 @@ export default function EditProfileScreen() {
           onChangeText={setName}
           placeholder="Enter your full name"
           placeholderTextColor="#94A3B8"
+          editable={!loading}
         />
 
-        <Text style={styles.label}>Email</Text>
+        {/* Email */}
+        <Text style={styles.label}>
+          Email
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -69,9 +144,13 @@ export default function EditProfileScreen() {
           placeholderTextColor="#94A3B8"
           keyboardType="email-address"
           autoCapitalize="none"
+          editable={!loading}
         />
 
-        <Text style={styles.label}>Flat Number</Text>
+        {/* Flat Number */}
+        <Text style={styles.label}>
+          Flat Number
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -79,24 +158,35 @@ export default function EditProfileScreen() {
           onChangeText={setFlat}
           placeholder="Example: A-203"
           placeholderTextColor="#94A3B8"
+          autoCapitalize="characters"
+          editable={!loading}
         />
 
+        {/* Save */}
         <Pressable
-          style={styles.saveButton}
+          style={[
+            styles.saveButton,
+            loading && styles.disabledButton,
+          ]}
           onPress={saveProfile}
+          disabled={loading}
         >
-          <Text style={styles.saveText}>Save Changes</Text>
+          <Text style={styles.saveText}>
+            Save Changes
+          </Text>
         </Pressable>
 
+        {/* Back */}
         <Pressable
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Text style={styles.backText}>← Back</Text>
+          <Text style={styles.backText}>
+            ← Back
+          </Text>
         </Pressable>
 
       </View>
-
     </ScrollView>
   );
 }
@@ -142,6 +232,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#FFFFFF',
     marginBottom: 22,
+    color: '#0F172A',
   },
 
   saveButton: {
@@ -151,6 +242,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 5,
+  },
+
+  disabledButton: {
+    opacity: 0.6,
   },
 
   saveText: {

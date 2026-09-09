@@ -1,5 +1,16 @@
-import { StyleSheet, Text, TextInput, View, Pressable, ScrollView, Alert } from 'react-native';
-import { useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  Pressable,
+  ScrollView,
+  Alert,
+} from 'react-native';
+
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { getData, saveData } from '../data/storage';
 
 type Complaint = {
   id: string;
@@ -8,42 +19,105 @@ type Complaint = {
   status: 'Submitted' | 'In Progress' | 'Resolved';
 };
 
+const STORAGE_KEY = 'complaints';
+
+const initialComplaints: Complaint[] = [
+  {
+    id: 'CMP-001',
+    text: 'Water leakage at Block A',
+    date: '08 Sep 2026',
+    status: 'Submitted',
+  },
+  {
+    id: 'CMP-002',
+    text: 'Street light not working',
+    date: '07 Sep 2026',
+    status: 'In Progress',
+  },
+];
+
 export default function ComplaintsScreen() {
   const [complaint, setComplaint] = useState('');
+  const [complaints, setComplaints] =
+    useState<Complaint[]>([]);
 
-  const [complaints, setComplaints] = useState<Complaint[]>([
-    {
-      id: 'CMP-001',
-      text: 'Water leakage at Block A',
-      date: '08 Sep 2026',
-      status: 'Submitted',
-    },
-    {
-      id: 'CMP-002',
-      text: 'Street light not working',
-      date: '07 Sep 2026',
-      status: 'In Progress',
-    },
-  ]);
+  // Load complaints whenever this screen becomes active
+  useFocusEffect(
+    useCallback(() => {
+      const loadComplaints = async () => {
+        const savedComplaints =
+          await getData<Complaint[]>(STORAGE_KEY);
 
-  const submitComplaint = () => {
+        if (savedComplaints) {
+          setComplaints(savedComplaints);
+        } else {
+          setComplaints(initialComplaints);
+          await saveData(
+            STORAGE_KEY,
+            initialComplaints,
+          );
+        }
+      };
+
+      loadComplaints();
+    }, [])
+  );
+
+  const submitComplaint = async () => {
     if (!complaint.trim()) {
-      Alert.alert('Required', 'Please describe your complaint.');
+      Alert.alert(
+        'Required',
+        'Please describe your complaint.',
+      );
       return;
     }
 
+    // Find the highest existing complaint number
+    const highestNumber = complaints.reduce(
+      (max, item) => {
+        const number = parseInt(
+          item.id.replace('CMP-', ''),
+          10,
+        );
+
+        return number > max ? number : max;
+      },
+      0,
+    );
+
     const newComplaint: Complaint = {
-      id: `CMP-${String(complaints.length + 1).padStart(3, '0')}`,
+      id: `CMP-${String(
+        highestNumber + 1,
+      ).padStart(3, '0')}`,
+
       text: complaint.trim(),
-      date: new Date().toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      }),
+
+      date: new Date().toLocaleDateString(
+        'en-GB',
+        {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        },
+      ),
+
       status: 'Submitted',
     };
 
-    setComplaints([newComplaint, ...complaints]);
+    const updatedComplaints = [
+      newComplaint,
+      ...complaints,
+    ];
+
+    // Update screen
+    setComplaints(updatedComplaints);
+
+    // Save permanently
+    await saveData(
+      STORAGE_KEY,
+      updatedComplaints,
+    );
+
     setComplaint('');
 
     Alert.alert(
@@ -52,7 +126,9 @@ export default function ComplaintsScreen() {
     );
   };
 
-  const getStatusStyle = (status: Complaint['status']) => {
+  const getStatusStyle = (
+    status: Complaint['status'],
+  ) => {
     if (status === 'Resolved') {
       return styles.resolvedBadge;
     }
@@ -64,7 +140,9 @@ export default function ComplaintsScreen() {
     return styles.submittedBadge;
   };
 
-  const getStatusTextStyle = (status: Complaint['status']) => {
+  const getStatusTextStyle = (
+    status: Complaint['status'],
+  ) => {
     if (status === 'Resolved') {
       return styles.resolvedText;
     }
@@ -78,7 +156,9 @@ export default function ComplaintsScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Complaints</Text>
+      <Text style={styles.title}>
+        Complaints
+      </Text>
 
       <Text style={styles.subtitle}>
         Report an issue in your society
@@ -86,7 +166,9 @@ export default function ComplaintsScreen() {
 
       {/* Submit Complaint */}
       <View style={styles.formCard}>
-        <Text style={styles.label}>Complaint</Text>
+        <Text style={styles.label}>
+          Complaint
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -113,8 +195,10 @@ export default function ComplaintsScreen() {
       </Text>
 
       {complaints.map((item) => (
-        <View style={styles.complaintCard} key={item.id}>
-
+        <View
+          style={styles.complaintCard}
+          key={item.id}
+        >
           <Text style={styles.complaintText}>
             {item.text}
           </Text>
@@ -147,12 +231,21 @@ export default function ComplaintsScreen() {
             Status
           </Text>
 
-          <View style={[styles.statusBadge, getStatusStyle(item.status)]}>
-            <Text style={[styles.statusText, getStatusTextStyle(item.status)]}>
+          <View
+            style={[
+              styles.statusBadge,
+              getStatusStyle(item.status),
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusText,
+                getStatusTextStyle(item.status),
+              ]}
+            >
               {item.status}
             </Text>
           </View>
-
         </View>
       ))}
 

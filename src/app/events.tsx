@@ -6,7 +6,8 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { getData, saveData } from '../data/storage';
 
 type Event = {
   id: number;
@@ -19,46 +20,72 @@ type Event = {
   registered: number;
 };
 
-export default function EventsScreen() {
-  const [events, setEvents] = useState<Event[]>([
-    {
-      id: 1,
-      emoji: '📅',
-      date: 'July 17',
-      title: 'Society Meeting',
-      description:
-        'Monthly society meeting will be held this Sunday.',
-      time: '6:00 PM',
-      location: 'Community Hall',
-      registered: 24,
-    },
-    {
-      id: 2,
-      emoji: '🎉',
-      date: 'July 20',
-      title: 'Community Gathering',
-      description:
-        'Join your neighbours for a community gathering.',
-      time: '7:00 PM',
-      location: 'Society Garden',
-      registered: 19,
-    },
-    {
-      id: 3,
-      emoji: '🏆',
-      date: 'July 25',
-      title: 'Sports Day',
-      description:
-        'A fun-filled sports day for all society residents.',
-      time: '9:00 AM',
-      location: 'Society Ground',
-      registered: 33,
-    },
-  ]);
+const EVENTS_KEY = 'events';
+const REGISTERED_EVENTS_KEY = 'registeredEvents';
 
+const initialEvents: Event[] = [
+  {
+    id: 1,
+    emoji: '📅',
+    date: 'July 17',
+    title: 'Society Meeting',
+    description:
+      'Monthly society meeting will be held this Sunday.',
+    time: '6:00 PM',
+    location: 'Community Hall',
+    registered: 24,
+  },
+  {
+    id: 2,
+    emoji: '🎉',
+    date: 'July 20',
+    title: 'Community Gathering',
+    description:
+      'Join your neighbours for a community gathering.',
+    time: '7:00 PM',
+    location: 'Society Garden',
+    registered: 19,
+  },
+  {
+    id: 3,
+    emoji: '🏆',
+    date: 'July 25',
+    title: 'Sports Day',
+    description:
+      'A fun-filled sports day for all society residents.',
+    time: '9:00 AM',
+    location: 'Society Ground',
+    registered: 33,
+  },
+];
+
+export default function EventsScreen() {
+  const [events, setEvents] = useState<Event[]>([]);
   const [registeredEvents, setRegisteredEvents] = useState<number[]>([]);
 
-  const registerForEvent = (eventId: number) => {
+  // Load saved event data
+  useEffect(() => {
+    const loadEventData = async () => {
+      const savedEvents = await getData<Event[]>(EVENTS_KEY);
+      const savedRegisteredEvents =
+        await getData<number[]>(REGISTERED_EVENTS_KEY);
+
+      if (savedEvents) {
+        setEvents(savedEvents);
+      } else {
+        setEvents(initialEvents);
+        await saveData(EVENTS_KEY, initialEvents);
+      }
+
+      if (savedRegisteredEvents) {
+        setRegisteredEvents(savedRegisteredEvents);
+      }
+    };
+
+    loadEventData();
+  }, []);
+
+  const registerForEvent = async (eventId: number) => {
     if (registeredEvents.includes(eventId)) {
       return;
     }
@@ -71,21 +98,31 @@ export default function EventsScreen() {
       return;
     }
 
-    setRegisteredEvents((previous) => [
-      ...previous,
+    const updatedRegisteredEvents = [
+      ...registeredEvents,
       eventId,
-    ]);
+    ];
 
-    setEvents((previousEvents) =>
-      previousEvents.map((event) =>
-        event.id === eventId
-          ? {
-              ...event,
-              registered: event.registered + 1,
-            }
-          : event,
-      ),
+    const updatedEvents = events.map((event) =>
+      event.id === eventId
+        ? {
+            ...event,
+            registered: event.registered + 1,
+          }
+        : event,
     );
+
+    // Update screen
+    setRegisteredEvents(updatedRegisteredEvents);
+    setEvents(updatedEvents);
+
+    // Save permanently
+    await saveData(
+      REGISTERED_EVENTS_KEY,
+      updatedRegisteredEvents,
+    );
+
+    await saveData(EVENTS_KEY, updatedEvents);
 
     Alert.alert(
       'Registration Successful',
@@ -95,7 +132,6 @@ export default function EventsScreen() {
 
   return (
     <ScrollView style={styles.container}>
-
       <Text style={styles.title}>Events</Text>
 
       <Text style={styles.subtitle}>
@@ -103,11 +139,11 @@ export default function EventsScreen() {
       </Text>
 
       {events.map((event) => {
-        const isRegistered = registeredEvents.includes(event.id);
+        const isRegistered =
+          registeredEvents.includes(event.id);
 
         return (
           <View style={styles.card} key={event.id}>
-
             <Text style={styles.date}>
               {event.emoji} {event.date}
             </Text>
@@ -137,7 +173,8 @@ export default function EventsScreen() {
             <Pressable
               style={[
                 styles.registerButton,
-                isRegistered && styles.registeredButton,
+                isRegistered &&
+                  styles.registeredButton,
               ]}
               onPress={() => registerForEvent(event.id)}
               disabled={isRegistered}
@@ -154,7 +191,6 @@ export default function EventsScreen() {
                   : 'Register for Event'}
               </Text>
             </Pressable>
-
           </View>
         );
       })}
@@ -174,7 +210,6 @@ export default function EventsScreen() {
       </Pressable>
 
       <View style={styles.bottomSpace} />
-
     </ScrollView>
   );
 }

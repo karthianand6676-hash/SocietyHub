@@ -1,43 +1,90 @@
-import { StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
-import { Link } from 'expo-router';
-import { router } from 'expo-router';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  Pressable,
+  Alert,
+} from 'react-native';
 
+import { Link, router } from 'expo-router';
+import { useState } from 'react';
+import { saveData } from '../data/storage';
+
+const LOGIN_KEY = 'isLoggedIn';
 
 export default function LoginScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert(
+        'Missing Details',
+        'Please enter your email and password.',
+      );
+      return;
+    }
+
+    // Save login session
+    await saveData(LOGIN_KEY, true);
+
+    router.replace('/(tabs)/home');
+  };
+
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>SocietyHub</Text>
 
-      <Text style={styles.title}>Welcome Back</Text>
+      <Text style={styles.logo}>
+        SocietyHub
+      </Text>
+
+      <Text style={styles.title}>
+        Welcome Back
+      </Text>
 
       <Text style={styles.subtitle}>
         Login to manage your society and stay connected.
       </Text>
 
       <View style={styles.form}>
-        <Text style={styles.label}>Email</Text>
+
+        <Text style={styles.label}>
+          Email
+        </Text>
 
         <TextInput
           style={styles.input}
+          value={email}
+          onChangeText={setEmail}
           placeholder="Enter your email"
           placeholderTextColor="#94A3B8"
           keyboardType="email-address"
           autoCapitalize="none"
         />
 
-        <Text style={styles.label}>Password</Text>
+        <Text style={styles.label}>
+          Password
+        </Text>
 
         <TextInput
           style={styles.input}
+          value={password}
+          onChangeText={setPassword}
           placeholder="Enter your password"
           placeholderTextColor="#94A3B8"
           secureTextEntry
         />
 
-        <Pressable style={styles.button}
-  onPress={() => router.replace('/(tabs)/home')}>
-  <Text style={styles.buttonText}>Login</Text>
-</Pressable>
+        <Pressable
+          style={styles.button}
+          onPress={handleLogin}
+        >
+          <Text style={styles.buttonText}>
+            Login
+          </Text>
+        </Pressable>
+
       </View>
 
       <View style={styles.registerContainer}>
@@ -45,11 +92,14 @@ export default function LoginScreen() {
           Don't have an account?{' '}
         </Text>
 
-        <Link href="/register" style={styles.registerLink}>
+        <Link
+          href="/register"
+          style={styles.registerLink}
+        >
           Register
         </Link>
       </View>
-      
+
     </View>
   );
 }
@@ -136,12 +186,5 @@ const styles = StyleSheet.create({
     color: '#2563EB',
     fontSize: 14,
     fontWeight: '700',
-  },
-
-  backLink: {
-    textAlign: 'center',
-    marginTop: 25,
-    color: '#64748B',
-    fontSize: 14,
   },
 });

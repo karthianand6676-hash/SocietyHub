@@ -1,28 +1,146 @@
-import { StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
-import { Link } from 'expo-router';
-import { router } from 'expo-router';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  Pressable,
+  Alert,
+} from 'react-native';
+
+import { Link, router } from 'expo-router';
+import { useState } from 'react';
+import { getData, saveData } from '../data/storage';
+
+type AccountData = {
+  name: string;
+  email: string;
+  flat: string;
+  password: string;
+};
+
+type ProfileData = {
+  name: string;
+  email: string;
+  flat: string;
+};
+
+const ACCOUNT_KEY = 'accountData';
+const PROFILE_KEY = 'profileData';
 
 export default function RegisterScreen() {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [flat, setFlat] = useState('');
+  const [password, setPassword] = useState('');
+
+  const createAccount = async () => {
+    // Check empty fields
+    if (
+      !name.trim() ||
+      !email.trim() ||
+      !flat.trim() ||
+      !password.trim()
+    ) {
+      Alert.alert(
+        'Missing Details',
+        'Please fill in all the fields.',
+      );
+      return;
+    }
+
+    // Basic email validation
+    if (!email.includes('@')) {
+      Alert.alert(
+        'Invalid Email',
+        'Please enter a valid email address.',
+      );
+      return;
+    }
+
+    // Basic password validation
+    if (password.length < 6) {
+      Alert.alert(
+        'Weak Password',
+        'Password must contain at least 6 characters.',
+      );
+      return;
+    }
+
+    // Check whether an account already exists
+    const existingAccount =
+      await getData<AccountData>(ACCOUNT_KEY);
+
+    if (
+      existingAccount &&
+      existingAccount.email.toLowerCase() ===
+        email.trim().toLowerCase()
+    ) {
+      Alert.alert(
+        'Account Already Exists',
+        'An account with this email already exists. Please login.',
+      );
+      return;
+    }
+
+    const account: AccountData = {
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      flat: flat.trim().toUpperCase(),
+      password,
+    };
+
+    const profile: ProfileData = {
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      flat: flat.trim().toUpperCase(),
+    };
+
+    // Save account
+    await saveData(ACCOUNT_KEY, account);
+
+    // Save profile
+    await saveData(PROFILE_KEY, profile);
+
+    Alert.alert(
+      'Account Created',
+      'Your SocietyHub account has been created successfully.',
+      [
+        {
+          text: 'Go to Login',
+          onPress: () => router.replace('/login'),
+        },
+      ],
+    );
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.logo}>SocietyHub</Text>
 
-      <Text style={styles.title}>Create Account</Text>
+      <Text style={styles.title}>
+        Create Account
+      </Text>
 
       <Text style={styles.subtitle}>
         Join your community and stay connected.
       </Text>
 
       <View style={styles.form}>
-        <Text style={styles.label}>Full Name</Text>
+        <Text style={styles.label}>
+          Full Name
+        </Text>
 
         <TextInput
           style={styles.input}
           placeholder="Enter your full name"
           placeholderTextColor="#94A3B8"
+          value={name}
+          onChangeText={setName}
         />
 
-        <Text style={styles.label}>Email</Text>
+        <Text style={styles.label}>
+          Email
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -30,28 +148,43 @@ export default function RegisterScreen() {
           placeholderTextColor="#94A3B8"
           keyboardType="email-address"
           autoCapitalize="none"
+          value={email}
+          onChangeText={setEmail}
         />
 
-        <Text style={styles.label}>Flat Number</Text>
+        <Text style={styles.label}>
+          Flat Number
+        </Text>
 
         <TextInput
           style={styles.input}
           placeholder="Example: A-203"
           placeholderTextColor="#94A3B8"
           autoCapitalize="characters"
+          value={flat}
+          onChangeText={setFlat}
         />
 
-        <Text style={styles.label}>Password</Text>
+        <Text style={styles.label}>
+          Password
+        </Text>
 
         <TextInput
           style={styles.input}
           placeholder="Create a password"
           placeholderTextColor="#94A3B8"
           secureTextEntry
+          value={password}
+          onChangeText={setPassword}
         />
 
-        <Pressable style={styles.button}>
-          <Text style={styles.buttonText}>Create Account</Text>
+        <Pressable
+          style={styles.button}
+          onPress={createAccount}
+        >
+          <Text style={styles.buttonText}>
+            Create Account
+          </Text>
         </Pressable>
       </View>
 
@@ -60,15 +193,22 @@ export default function RegisterScreen() {
           Already have an account?{' '}
         </Text>
 
-        <Link href="/login" style={styles.loginLink}>
+        <Link
+          href="/login"
+          style={styles.loginLink}
+        >
           Login
         </Link>
       </View>
-      
-      <Pressable onPress={() => router.replace('/welcome')}>
-      <Text>← Back</Text>
+
+      <Pressable
+        style={styles.backButton}
+        onPress={() => router.replace('/welcome')}
+      >
+        <Text style={styles.backText}>
+          ← Back
+        </Text>
       </Pressable>
-      
     </View>
   );
 }
@@ -123,6 +263,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#FFFFFF',
     marginBottom: 16,
+    color: '#0F172A',
   },
 
   button: {
@@ -157,9 +298,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  backLink: {
-    textAlign: 'center',
+  backButton: {
+    alignItems: 'center',
     marginTop: 20,
+  },
+
+  backText: {
     color: '#64748B',
     fontSize: 14,
   },

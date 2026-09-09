@@ -6,8 +6,9 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
+import { getData, saveData } from '../data/storage';
 
 type Announcement = {
   id: number;
@@ -17,42 +18,75 @@ type Announcement = {
   priority: 'Important' | 'Normal';
 };
 
+const READ_ANNOUNCEMENTS_KEY = 'readAnnouncements';
+
+const initialAnnouncements: Announcement[] = [
+  {
+    id: 1,
+    title: 'Society Meeting',
+    message:
+      'Monthly society meeting will be held this Sunday. All residents are requested to attend.',
+    date: '08 Sept 2026',
+    priority: 'Important',
+  },
+  {
+    id: 2,
+    title: 'Water Maintenance',
+    message:
+      'Water maintenance work is scheduled tomorrow. Water supply may be temporarily affected.',
+    date: '07 Sept 2026',
+    priority: 'Important',
+  },
+  {
+    id: 3,
+    title: 'Parking Notice',
+    message:
+      'Residents are requested to park their vehicles only in the designated parking areas.',
+    date: '05 Sept 2026',
+    priority: 'Normal',
+  },
+];
+
 export default function AnnouncementsScreen() {
-  const [announcements] = useState<Announcement[]>([
-    {
-      id: 1,
-      title: 'Society Meeting',
-      message:
-        'Monthly society meeting will be held this Sunday. All residents are requested to attend.',
-      date: '08 Sept 2026',
-      priority: 'Important',
-    },
-    {
-      id: 2,
-      title: 'Water Maintenance',
-      message:
-        'Water maintenance work is scheduled tomorrow. Water supply may be temporarily affected.',
-      date: '07 Sept 2026',
-      priority: 'Important',
-    },
-    {
-      id: 3,
-      title: 'Parking Notice',
-      message:
-        'Residents are requested to park their vehicles only in the designated parking areas.',
-      date: '05 Sept 2026',
-      priority: 'Normal',
-    },
-  ]);
+  const [announcements] =
+    useState<Announcement[]>(initialAnnouncements);
 
-  const [readAnnouncements, setReadAnnouncements] = useState<number[]>([]);
+  const [readAnnouncements, setReadAnnouncements] =
+    useState<number[]>([]);
 
-  const openAnnouncement = (announcement: Announcement) => {
+  // Load saved read status
+  useEffect(() => {
+    const loadReadAnnouncements = async () => {
+      const savedReadAnnouncements =
+        await getData<number[]>(
+          READ_ANNOUNCEMENTS_KEY,
+        );
+
+      if (savedReadAnnouncements) {
+        setReadAnnouncements(savedReadAnnouncements);
+      }
+    };
+
+    loadReadAnnouncements();
+  }, []);
+
+  const openAnnouncement = async (
+    announcement: Announcement,
+  ) => {
     if (!readAnnouncements.includes(announcement.id)) {
-      setReadAnnouncements((previous) => [
-        ...previous,
+      const updatedReadAnnouncements = [
+        ...readAnnouncements,
         announcement.id,
-      ]);
+      ];
+
+      // Update screen
+      setReadAnnouncements(updatedReadAnnouncements);
+
+      // Save permanently
+      await saveData(
+        READ_ANNOUNCEMENTS_KEY,
+        updatedReadAnnouncements,
+      );
     }
 
     Alert.alert(
@@ -63,7 +97,6 @@ export default function AnnouncementsScreen() {
 
   return (
     <ScrollView style={styles.container}>
-
       <Text style={styles.title}>Announcements</Text>
 
       <Text style={styles.subtitle}>
@@ -86,7 +119,6 @@ export default function AnnouncementsScreen() {
               openAnnouncement(announcement)
             }
           >
-
             <View style={styles.topRow}>
               <Text style={styles.icon}>
                 📢
@@ -135,7 +167,6 @@ export default function AnnouncementsScreen() {
                 {isRead ? '✓ Read' : '● Unread'}
               </Text>
             </View>
-
           </Pressable>
         );
       })}
@@ -150,7 +181,6 @@ export default function AnnouncementsScreen() {
       </Pressable>
 
       <View style={styles.bottomSpace} />
-
     </ScrollView>
   );
 }

@@ -1,71 +1,141 @@
-import { StyleSheet, Text, View, Pressable, ScrollView } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import {
+  StyleSheet,
+  Text,
+  View,
+  Pressable,
+  ScrollView,
+} from 'react-native';
+
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { getData, removeData } from '../data/storage';
+
+type ProfileData = {
+  name: string;
+  email: string;
+  flat: string;
+};
+
+const PROFILE_KEY = 'profileData';
+const LOGIN_KEY = 'isLoggedIn';
+
+const defaultProfile: ProfileData = {
+  name: 'Resident',
+  email: 'resident@example.com',
+  flat: 'A-203',
+};
 
 export default function ProfileScreen() {
-  const params = useLocalSearchParams();
+  const [profile, setProfile] =
+    useState<ProfileData>(defaultProfile);
 
-  const name =
-    typeof params.name === 'string' ? params.name : 'Resident';
+  // Load saved profile
+  useEffect(() => {
+    const loadProfile = async () => {
+      const savedProfile =
+        await getData<ProfileData>(PROFILE_KEY);
 
-  const email =
-    typeof params.email === 'string'
-      ? params.email
-      : 'resident@example.com';
+      if (savedProfile) {
+        setProfile(savedProfile);
+      }
+    };
 
-  const flat =
-    typeof params.flat === 'string' ? params.flat : 'A-203';
+    loadProfile();
+  }, []);
+
+  // Logout
+  const handleLogout = async () => {
+    await removeData(LOGIN_KEY);
+
+    router.replace('/login');
+  };
 
   return (
     <ScrollView style={styles.container}>
-
       <Text style={styles.title}>My Profile</Text>
 
       <Text style={styles.subtitle}>
         Your account details
       </Text>
 
+      {/* Profile Card */}
       <View style={styles.profileCard}>
         <Text style={styles.avatar}>👤</Text>
 
-        <Text style={styles.name}>{name}</Text>
+        <Text style={styles.name}>
+          {profile.name}
+        </Text>
 
-        <Text style={styles.role}>Society Resident</Text>
+        <Text style={styles.role}>
+          Society Resident
+        </Text>
       </View>
 
+      {/* Profile Information */}
       <View style={styles.infoCard}>
-        <Text style={styles.label}>Full Name</Text>
-        <Text style={styles.value}>{name}</Text>
+        <Text style={styles.label}>
+          Full Name
+        </Text>
 
-        <Text style={styles.label}>Email</Text>
-        <Text style={styles.value}>{email}</Text>
+        <Text style={styles.value}>
+          {profile.name}
+        </Text>
 
-        <Text style={styles.label}>Flat Number</Text>
-        <Text style={styles.value}>{flat}</Text>
+        <Text style={styles.label}>
+          Email
+        </Text>
+
+        <Text style={styles.value}>
+          {profile.email}
+        </Text>
+
+        <Text style={styles.label}>
+          Flat Number
+        </Text>
+
+        <Text style={styles.value}>
+          {profile.flat}
+        </Text>
       </View>
 
+      {/* Edit Profile */}
       <Pressable
         style={styles.editButton}
         onPress={() =>
           router.push({
             pathname: '/edit-profile',
             params: {
-              name,
-              email,
-              flat,
+              name: profile.name,
+              email: profile.email,
+              flat: profile.flat,
             },
           })
         }
       >
-        <Text style={styles.buttonText}>Edit Profile</Text>
+        <Text style={styles.buttonText}>
+          Edit Profile
+        </Text>
       </Pressable>
 
+      {/* Logout */}
+      <Pressable
+        style={styles.logoutButton}
+        onPress={handleLogout}
+      >
+        <Text style={styles.logoutText}>
+          Logout
+        </Text>
+      </Pressable>
+
+      {/* Back */}
       <Pressable
         style={styles.backButton}
         onPress={() => router.back()}
       >
-        <Text style={styles.backText}>← Back</Text>
+        <Text style={styles.backText}>
+          ← Back
+        </Text>
       </Pressable>
-
     </ScrollView>
   );
 }
@@ -151,6 +221,21 @@ const styles = StyleSheet.create({
 
   buttonText: {
     color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  logoutButton: {
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 15,
+  },
+
+  logoutText: {
+    color: '#DC2626',
     fontSize: 16,
     fontWeight: '700',
   },
