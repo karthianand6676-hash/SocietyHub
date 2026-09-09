@@ -32,9 +32,14 @@ type Event = {
   registered: number;
 };
 
+type ProfileData = {
+  name: string;
+  email: string;
+  flat: string;
+};
+
 const EVENTS_KEY = 'events';
-const REGISTERED_EVENTS_KEY =
-  'registeredEvents';
+const PROFILE_KEY = 'profileData';
 
 const initialEvents: Event[] = [
   {
@@ -81,18 +86,31 @@ export default function EventsScreen() {
     setRegisteredEvents,
   ] = useState<number[]>([]);
 
-  // Load whenever screen becomes active
+  const [userEmail, setUserEmail] =
+    useState('');
+
+  // --------------------------------
+  // LOAD EVENT DATA
+  // --------------------------------
+
   useFocusEffect(
     useCallback(() => {
       const loadEventData = async () => {
+        // Get currently logged-in user's profile
+        const profile =
+          await getData<ProfileData>(
+            PROFILE_KEY,
+          );
+
+        const email =
+          profile?.email?.trim().toLowerCase() || '';
+
+        setUserEmail(email);
+
+        // Load shared events
         const savedEvents =
           await getData<Event[]>(
             EVENTS_KEY,
-          );
-
-        const savedRegisteredEvents =
-          await getData<number[]>(
-            REGISTERED_EVENTS_KEY,
           );
 
         if (savedEvents) {
@@ -106,10 +124,26 @@ export default function EventsScreen() {
           );
         }
 
-        if (savedRegisteredEvents) {
-          setRegisteredEvents(
-            savedRegisteredEvents,
-          );
+        // --------------------------------
+        // LOAD THIS USER'S REGISTRATIONS
+        // --------------------------------
+
+        if (email) {
+          const userRegisteredEventsKey =
+            `registeredEvents_${email}`;
+
+          const savedRegisteredEvents =
+            await getData<number[]>(
+              userRegisteredEventsKey,
+            );
+
+          if (savedRegisteredEvents) {
+            setRegisteredEvents(
+              savedRegisteredEvents,
+            );
+          } else {
+            setRegisteredEvents([]);
+          }
         } else {
           setRegisteredEvents([]);
         }
@@ -126,6 +160,14 @@ export default function EventsScreen() {
   const registerForEvent = async (
     eventId: number,
   ) => {
+    if (!userEmail) {
+      Alert.alert(
+        'Login Required',
+        'Please login before registering for an event.',
+      );
+      return;
+    }
+
     if (
       registeredEvents.includes(eventId)
     ) {
@@ -142,11 +184,13 @@ export default function EventsScreen() {
       return;
     }
 
+    // User-specific registration list
     const updatedRegisteredEvents = [
       ...registeredEvents,
       eventId,
     ];
 
+    // Shared event data
     const updatedEvents =
       events.map((event) =>
         event.id === eventId
@@ -164,10 +208,21 @@ export default function EventsScreen() {
 
     setEvents(updatedEvents);
 
+    // --------------------------------
+    // SAVE USER-SPECIFIC REGISTRATION
+    // --------------------------------
+
+    const userRegisteredEventsKey =
+      `registeredEvents_${userEmail}`;
+
     await saveData(
-      REGISTERED_EVENTS_KEY,
+      userRegisteredEventsKey,
       updatedRegisteredEvents,
     );
+
+    // --------------------------------
+    // SAVE SHARED EVENT COUNT
+    // --------------------------------
 
     await saveData(
       EVENTS_KEY,

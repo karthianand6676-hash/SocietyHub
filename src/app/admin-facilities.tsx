@@ -18,6 +18,8 @@ import {
   useState,
 } from 'react';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import {
   getData,
   saveData,
@@ -37,8 +39,13 @@ type Booking = {
   time: string;
 };
 
+type AdminBooking = {
+  booking: Booking;
+  ownerEmail: string;
+};
+
 const FACILITIES_KEY = 'facilities';
-const BOOKINGS_KEY = 'facilityBookings';
+const BOOKING_PREFIX = 'facilityBookings_';
 
 const initialFacilities: Facility[] = [
   {
@@ -69,7 +76,7 @@ export default function AdminFacilitiesScreen() {
     useState<Facility[]>([]);
 
   const [bookings, setBookings] =
-    useState<Booking[]>([]);
+    useState<AdminBooking[]>([]);
 
   const [icon, setIcon] =
     useState('🏢');
@@ -87,32 +94,67 @@ export default function AdminFacilitiesScreen() {
   useFocusEffect(
     useCallback(() => {
       const loadData = async () => {
+        // Load facilities
         const savedFacilities =
           await getData<Facility[]>(
-            FACILITIES_KEY,
-          );
-
-        const savedBookings =
-          await getData<Booking[]>(
-            BOOKINGS_KEY,
+            FACILITIES_KEY
           );
 
         if (savedFacilities) {
           setFacilities(savedFacilities);
         } else {
-          setFacilities(
-            initialFacilities,
-          );
+          setFacilities(initialFacilities);
 
           await saveData(
             FACILITIES_KEY,
-            initialFacilities,
+            initialFacilities
           );
         }
 
-        if (savedBookings) {
-          setBookings(savedBookings);
-        } else {
+        // --------------------------------
+        // LOAD BOOKINGS FROM ALL RESIDENTS
+        // --------------------------------
+
+        try {
+          const allKeys =
+            await AsyncStorage.getAllKeys();
+
+          const bookingKeys =
+            allKeys.filter((key) =>
+              key.startsWith(BOOKING_PREFIX)
+            );
+
+          const allBookings: AdminBooking[] = [];
+
+          for (const key of bookingKeys) {
+            const ownerEmail =
+              key.replace(
+                BOOKING_PREFIX,
+                ''
+              );
+
+            const residentBookings =
+              await getData<Booking[]>(key);
+
+            if (residentBookings) {
+              residentBookings.forEach(
+                (booking) => {
+                  allBookings.push({
+                    booking,
+                    ownerEmail,
+                  });
+                }
+              );
+            }
+          }
+
+          setBookings(allBookings);
+        } catch (error) {
+          console.log(
+            'Error loading resident bookings:',
+            error
+          );
+
           setBookings([]);
         }
       };
@@ -132,7 +174,7 @@ export default function AdminFacilitiesScreen() {
     ) {
       Alert.alert(
         'Missing Details',
-        'Please enter the facility name and description.',
+        'Please enter the facility name and description.'
       );
 
       return;
@@ -144,12 +186,13 @@ export default function AdminFacilitiesScreen() {
           facility.id > max
             ? facility.id
             : max,
-        0,
+        0
       );
 
     const newFacility: Facility = {
       id: highestId + 1,
-      icon: icon.trim() || '🏢',
+      icon:
+        icon.trim() || '🏢',
       name: name.trim(),
       description:
         description.trim(),
@@ -161,12 +204,12 @@ export default function AdminFacilitiesScreen() {
     ];
 
     setFacilities(
-      updatedFacilities,
+      updatedFacilities
     );
 
     await saveData(
       FACILITIES_KEY,
-      updatedFacilities,
+      updatedFacilities
     );
 
     setIcon('🏢');
@@ -175,7 +218,7 @@ export default function AdminFacilitiesScreen() {
 
     Alert.alert(
       'Facility Added',
-      `${newFacility.name} has been added successfully.`,
+      `${newFacility.name} has been added successfully.`
     );
   };
 
@@ -184,19 +227,19 @@ export default function AdminFacilitiesScreen() {
   // --------------------------------
 
   const deleteFacility = (
-    facility: Facility,
+    facility: Facility
   ) => {
     const hasBooking =
       bookings.some(
-        (booking) =>
-          booking.facility ===
-          facility.name,
+        (item) =>
+          item.booking.facility ===
+          facility.name
       );
 
     if (hasBooking) {
       Alert.alert(
         'Cannot Delete',
-        `${facility.name} has existing bookings. Cancel those bookings first before deleting the facility.`,
+        `${facility.name} has existing bookings. Cancel those bookings first before deleting the facility.`
       );
 
       return;
@@ -213,40 +256,46 @@ export default function AdminFacilitiesScreen() {
         {
           text: 'Delete',
           style: 'destructive',
+
           onPress: async () => {
             const updatedFacilities =
               facilities.filter(
                 (item) =>
                   item.id !==
-                  facility.id,
+                  facility.id
               );
 
             setFacilities(
-              updatedFacilities,
+              updatedFacilities
             );
 
             await saveData(
               FACILITIES_KEY,
-              updatedFacilities,
+              updatedFacilities
             );
 
             Alert.alert(
               'Deleted',
-              'Facility deleted successfully.',
+              'Facility deleted successfully.'
             );
           },
         },
-      ],
+      ]
     );
   };
 
   // --------------------------------
-  // DELETE BOOKING
+  // CANCEL RESIDENT BOOKING
   // --------------------------------
 
   const deleteBooking = (
-    booking: Booking,
+    adminBooking: AdminBooking
   ) => {
+    const {
+      booking,
+      ownerEmail,
+    } = adminBooking;
+
     Alert.alert(
       'Cancel Booking',
       `Cancel booking for ${booking.facility} on ${booking.date}?`,
@@ -255,35 +304,86 @@ export default function AdminFacilitiesScreen() {
           text: 'No',
           style: 'cancel',
         },
+
         {
           text: 'Cancel Booking',
           style: 'destructive',
+
           onPress: async () => {
-            const updatedBookings =
-              bookings.filter(
-                (item) =>
-                  item.id !==
-                  booking.id,
+            try {
+              // Get this resident's booking key
+              const bookingKey =
+                `${BOOKING_PREFIX}${ownerEmail}`;
+
+              // Load that resident's bookings
+              const residentBookings =
+                await getData<Booking[]>(
+                  bookingKey
+                );
+
+              if (!residentBookings) {
+                Alert.alert(
+                  'Error',
+                  'Booking data could not be found.'
+                );
+
+                return;
+              }
+
+              // Remove selected booking
+              const updatedResidentBookings =
+                residentBookings.filter(
+                  (item) =>
+                    item.id !==
+                    booking.id
+                );
+
+              // Save back to resident storage
+              await saveData(
+                bookingKey,
+                updatedResidentBookings
               );
 
-            setBookings(
-              updatedBookings,
-            );
+              // Remove from Admin screen
+              const updatedAdminBookings =
+                bookings.filter(
+                  (item) =>
+                    !(
+                      item.ownerEmail ===
+                        ownerEmail &&
+                      item.booking.id ===
+                        booking.id
+                    )
+                );
 
-            await saveData(
-              BOOKINGS_KEY,
-              updatedBookings,
-            );
+              setBookings(
+                updatedAdminBookings
+              );
 
-            Alert.alert(
-              'Booking Cancelled',
-              'The booking has been cancelled.',
-            );
+              Alert.alert(
+                'Booking Cancelled',
+                'The booking has been cancelled successfully.'
+              );
+            } catch (error) {
+              console.log(
+                'Error cancelling booking:',
+                error
+              );
+
+              Alert.alert(
+                'Error',
+                'Unable to cancel the booking.'
+              );
+            }
           },
         },
-      ],
+      ]
     );
   };
+
+  // --------------------------------
+  // UI
+  // --------------------------------
 
   return (
     <ScrollView
@@ -294,7 +394,9 @@ export default function AdminFacilitiesScreen() {
 
       <Pressable
         style={styles.backButton}
-        onPress={() => router.back()}
+        onPress={() =>
+          router.back()
+        }
       >
         <Text style={styles.backText}>
           ← Admin Dashboard
@@ -304,7 +406,9 @@ export default function AdminFacilitiesScreen() {
       {/* HEADER */}
 
       <View style={styles.headerRow}>
-        <View style={styles.headerContent}>
+        <View
+          style={styles.headerContent}
+        >
           <Text style={styles.title}>
             Manage Facilities
           </Text>
@@ -316,7 +420,9 @@ export default function AdminFacilitiesScreen() {
         </View>
 
         <View style={styles.adminBadge}>
-          <Text style={styles.adminBadgeText}>
+          <Text
+            style={styles.adminBadgeText}
+          >
             ADMIN
           </Text>
         </View>
@@ -364,14 +470,18 @@ export default function AdminFacilitiesScreen() {
           multiline
           textAlignVertical="top"
           value={description}
-          onChangeText={setDescription}
+          onChangeText={
+            setDescription
+          }
         />
 
         <Pressable
           style={styles.addButton}
           onPress={addFacility}
         >
-          <Text style={styles.addButtonText}>
+          <Text
+            style={styles.addButtonText}
+          >
             + Add Facility
           </Text>
         </Pressable>
@@ -383,48 +493,68 @@ export default function AdminFacilitiesScreen() {
         Society Facilities
       </Text>
 
-      {facilities.map((facility) => (
-        <View
-          style={styles.card}
-          key={facility.id}
-        >
-          <View style={styles.cardTopRow}>
-            <Text style={styles.icon}>
-              {facility.icon}
-            </Text>
-
-            <View style={styles.idBadge}>
-              <Text style={styles.idText}>
-                FAC-
-                {String(
-                  facility.id,
-                ).padStart(3, '0')}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={styles.cardTitle}>
-            {facility.name}
-          </Text>
-
-          <Text style={styles.cardDescription}>
-            {facility.description}
-          </Text>
-
-          <Pressable
-            style={styles.deleteButton}
-            onPress={() =>
-              deleteFacility(
-                facility,
-              )
-            }
+      {facilities.map(
+        (facility) => (
+          <View
+            style={styles.card}
+            key={facility.id}
           >
-            <Text style={styles.deleteText}>
-              🗑️ Delete Facility
+            <View
+              style={styles.cardTopRow}
+            >
+              <Text style={styles.icon}>
+                {facility.icon}
+              </Text>
+
+              <View
+                style={styles.idBadge}
+              >
+                <Text
+                  style={styles.idText}
+                >
+                  FAC-
+                  {String(
+                    facility.id
+                  ).padStart(3, '0')}
+                </Text>
+              </View>
+            </View>
+
+            <Text
+              style={styles.cardTitle}
+            >
+              {facility.name}
             </Text>
-          </Pressable>
-        </View>
-      ))}
+
+            <Text
+              style={
+                styles.cardDescription
+              }
+            >
+              {facility.description}
+            </Text>
+
+            <Pressable
+              style={
+                styles.deleteButton
+              }
+              onPress={() =>
+                deleteFacility(
+                  facility
+                )
+              }
+            >
+              <Text
+                style={
+                  styles.deleteText
+                }
+              >
+                🗑️ Delete Facility
+              </Text>
+            </Pressable>
+          </View>
+        )
+      )}
 
       {/* BOOKINGS */}
 
@@ -432,45 +562,88 @@ export default function AdminFacilitiesScreen() {
         Resident Bookings
       </Text>
 
-      {bookings.map((booking) => (
-        <View
-          style={styles.bookingCard}
-          key={booking.id}
-        >
-          <View style={styles.bookingHeader}>
-            <Text style={styles.bookingTitle}>
-              🏢 {booking.facility}
-            </Text>
+      {bookings.map((item) => {
+        const booking =
+          item.booking;
 
-            <Text style={styles.bookingId}>
-              {booking.id}
-            </Text>
-          </View>
-
-          <View style={styles.bookingDetails}>
-            <Text style={styles.bookingDetail}>
-              📅 {booking.date}
-            </Text>
-
-            <Text style={styles.bookingDetail}>
-              🕐 {booking.time}
-            </Text>
-          </View>
-
-          <Pressable
-            style={styles.cancelButton}
-            onPress={() =>
-              deleteBooking(
-                booking,
-              )
+        return (
+          <View
+            style={
+              styles.bookingCard
             }
+            key={`${item.ownerEmail}-${booking.id}`}
           >
-            <Text style={styles.cancelText}>
-              Cancel Booking
-            </Text>
-          </Pressable>
-        </View>
-      ))}
+            <View
+              style={
+                styles.bookingHeader
+              }
+            >
+              <Text
+                style={
+                  styles.bookingTitle
+                }
+              >
+                🏢 {booking.facility}
+              </Text>
+
+              <Text
+                style={
+                  styles.bookingId
+                }
+              >
+                {booking.id}
+              </Text>
+            </View>
+
+            <View
+              style={
+                styles.bookingDetails
+              }
+            >
+              <Text
+                style={
+                  styles.bookingDetail
+                }
+              >
+                👤 {item.ownerEmail}
+              </Text>
+
+              <Text
+                style={
+                  styles.bookingDetail
+                }
+              >
+                📅 {booking.date}
+              </Text>
+
+              <Text
+                style={
+                  styles.bookingDetail
+                }
+              >
+                🕐 {booking.time}
+              </Text>
+            </View>
+
+            <Pressable
+              style={
+                styles.cancelButton
+              }
+              onPress={() =>
+                deleteBooking(item)
+              }
+            >
+              <Text
+                style={
+                  styles.cancelText
+                }
+              >
+                Cancel Booking
+              </Text>
+            </Pressable>
+          </View>
+        );
+      })}
 
       {bookings.length === 0 && (
         <View style={styles.emptyCard}>
@@ -478,21 +651,31 @@ export default function AdminFacilitiesScreen() {
             📋
           </Text>
 
-          <Text style={styles.emptyTitle}>
+          <Text
+            style={styles.emptyTitle}
+          >
             No Bookings
           </Text>
 
-          <Text style={styles.emptyText}>
+          <Text
+            style={styles.emptyText}
+          >
             There are currently no resident
             facility bookings.
           </Text>
         </View>
       )}
 
-      <View style={styles.bottomSpace} />
+      <View
+        style={styles.bottomSpace}
+      />
     </ScrollView>
   );
 }
+
+// ========================================
+// STYLES
+// ========================================
 
 const styles = StyleSheet.create({
   container: {
@@ -514,7 +697,8 @@ const styles = StyleSheet.create({
 
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent:
+      'space-between',
     alignItems: 'flex-start',
     marginBottom: 30,
   },
@@ -629,7 +813,8 @@ const styles = StyleSheet.create({
 
   cardTopRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent:
+      'space-between',
     alignItems: 'center',
     marginBottom: 15,
   },

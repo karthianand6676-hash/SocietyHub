@@ -9,7 +9,10 @@ import {
 
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import { getData, saveData } from '../data/storage';
+import {
+  getData,
+  saveData,
+} from '../data/storage';
 
 type AccountData = {
   name: string;
@@ -35,7 +38,10 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
 
   const createAccount = async () => {
-    // Check empty fields
+    // ========================================
+    // VALIDATE FIELDS
+    // ========================================
+
     if (
       !name.trim() ||
       !email.trim() ||
@@ -46,79 +52,175 @@ export default function RegisterScreen() {
         'Missing Details',
         'Please fill in all the fields.',
       );
+
       return;
     }
 
-    // Basic email validation
-    if (!email.includes('@')) {
+    // ========================================
+    // VALIDATE EMAIL
+    // ========================================
+
+    const newEmail =
+      email.trim().toLowerCase();
+
+    if (
+      !newEmail.includes('@') ||
+      !newEmail.includes('.')
+    ) {
       Alert.alert(
         'Invalid Email',
         'Please enter a valid email address.',
       );
+
       return;
     }
 
-    // Basic password validation
+    // ========================================
+    // VALIDATE PASSWORD
+    // ========================================
+
     if (password.length < 6) {
       Alert.alert(
         'Weak Password',
         'Password must contain at least 6 characters.',
       );
+
       return;
     }
 
-    // Check whether an account already exists
-    const existingAccount =
-      await getData<AccountData>(ACCOUNT_KEY);
+    try {
+      // ========================================
+      // GET EXISTING ACCOUNTS
+      // ========================================
 
-    if (
-      existingAccount &&
-      existingAccount.email.toLowerCase() ===
-        email.trim().toLowerCase()
-    ) {
-      Alert.alert(
-        'Account Already Exists',
-        'An account with this email already exists. Please login.',
+      const storedData =
+        await getData<
+          AccountData | AccountData[]
+        >(ACCOUNT_KEY);
+
+      let accounts: AccountData[] = [];
+
+      /*
+       * Support both:
+       *
+       * OLD FORMAT:
+       * accountData = { ... }
+       *
+       * NEW FORMAT:
+       * accountData = [ {...}, {...} ]
+       */
+
+      if (Array.isArray(storedData)) {
+        accounts = storedData;
+      } else if (storedData) {
+        accounts = [storedData];
+      }
+
+      // ========================================
+      // CHECK DUPLICATE EMAIL
+      // ========================================
+
+      const existingAccount =
+        accounts.find(
+          (account) =>
+            account.email
+              .trim()
+              .toLowerCase() === newEmail
+        );
+
+      if (existingAccount) {
+        Alert.alert(
+          'Account Already Exists',
+          'An account with this email already exists. Please login.',
+        );
+
+        return;
+      }
+
+      // ========================================
+      // CREATE NEW ACCOUNT
+      // ========================================
+
+      const account: AccountData = {
+        name: name.trim(),
+        email: newEmail,
+        flat: flat.trim().toUpperCase(),
+        password,
+        role: 'resident',
+      };
+
+      // Add new account without deleting
+      // existing accounts.
+      const updatedAccounts = [
+        ...accounts,
+        account,
+      ];
+
+      // ========================================
+      // SAVE ALL ACCOUNTS
+      // ========================================
+
+      await saveData(
+        ACCOUNT_KEY,
+        updatedAccounts
       );
-      return;
+
+      // ========================================
+      // SAVE PROFILE FOR NEW ACCOUNT
+      // ========================================
+
+      const profile: ProfileData = {
+        name: account.name,
+        email: account.email,
+        flat: account.flat,
+      };
+
+      await saveData(
+        PROFILE_KEY,
+        profile
+      );
+
+      // ========================================
+      // SUCCESS
+      // ========================================
+
+      Alert.alert(
+        'Account Created',
+        'Your SocietyHub account has been created successfully.',
+        [
+          {
+            text: 'Go to Login',
+            onPress: () =>
+              router.replace('/login'),
+          },
+        ],
+      );
+
+      // Clear fields
+      setName('');
+      setEmail('');
+      setFlat('');
+      setPassword('');
+
+    } catch (error) {
+      console.log(
+        'Registration error:',
+        error
+      );
+
+      Alert.alert(
+        'Registration Error',
+        'Something went wrong while creating your account. Please try again.',
+      );
     }
-
-    // Create resident account
-    const account: AccountData = {
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      flat: flat.trim().toUpperCase(),
-      password,
-      role: 'resident',
-    };
-
-    const profile: ProfileData = {
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      flat: flat.trim().toUpperCase(),
-    };
-
-    // Save account
-    await saveData(ACCOUNT_KEY, account);
-
-    // Save profile
-    await saveData(PROFILE_KEY, profile);
-
-    Alert.alert(
-      'Account Created',
-      'Your SocietyHub account has been created successfully.',
-      [
-        {
-          text: 'Go to Login',
-          onPress: () => router.replace('/login'),
-        },
-      ],
-    );
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.logo}>SocietyHub</Text>
+
+      <Text style={styles.logo}>
+        SocietyHub
+      </Text>
 
       <Text style={styles.title}>
         Create Account
@@ -129,6 +231,9 @@ export default function RegisterScreen() {
       </Text>
 
       <View style={styles.form}>
+
+        {/* FULL NAME */}
+
         <Text style={styles.label}>
           Full Name
         </Text>
@@ -139,7 +244,10 @@ export default function RegisterScreen() {
           placeholderTextColor="#94A3B8"
           value={name}
           onChangeText={setName}
+          autoCapitalize="words"
         />
+
+        {/* EMAIL */}
 
         <Text style={styles.label}>
           Email
@@ -151,9 +259,12 @@ export default function RegisterScreen() {
           placeholderTextColor="#94A3B8"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
           value={email}
           onChangeText={setEmail}
         />
+
+        {/* FLAT */}
 
         <Text style={styles.label}>
           Flat Number
@@ -168,6 +279,8 @@ export default function RegisterScreen() {
           onChangeText={setFlat}
         />
 
+        {/* PASSWORD */}
+
         <Text style={styles.label}>
           Password
         </Text>
@@ -181,6 +294,8 @@ export default function RegisterScreen() {
           onChangeText={setPassword}
         />
 
+        {/* CREATE ACCOUNT */}
+
         <Pressable
           style={styles.button}
           onPress={createAccount}
@@ -189,9 +304,13 @@ export default function RegisterScreen() {
             Create Account
           </Text>
         </Pressable>
+
       </View>
 
+      {/* LOGIN */}
+
       <View style={styles.loginContainer}>
+
         <Text style={styles.loginText}>
           Already have an account?{' '}
         </Text>
@@ -202,16 +321,22 @@ export default function RegisterScreen() {
         >
           Login
         </Link>
+
       </View>
+
+      {/* BACK */}
 
       <Pressable
         style={styles.backButton}
-        onPress={() => router.replace('/welcome')}
+        onPress={() =>
+          router.replace('/welcome')
+        }
       >
         <Text style={styles.backText}>
           ← Back
         </Text>
       </Pressable>
+
     </View>
   );
 }

@@ -19,8 +19,14 @@ type Announcement = {
   priority: 'Important' | 'Normal';
 };
 
+type ProfileData = {
+  name: string;
+  email: string;
+  flat: string;
+};
+
 const ANNOUNCEMENTS_KEY = 'announcements';
-const READ_ANNOUNCEMENTS_KEY = 'readAnnouncements';
+const PROFILE_KEY = 'profileData';
 
 const initialAnnouncements: Announcement[] = [
   {
@@ -59,10 +65,21 @@ export default function AnnouncementsScreen() {
   useFocusEffect(
     useCallback(() => {
       const loadAnnouncements = async () => {
-        // Load announcements
+        // Get current user's profile
+        const profile =
+          await getData<ProfileData>(PROFILE_KEY);
+
+        const userEmail =
+          profile?.email?.trim().toLowerCase() || 'guest';
+
+        // User-specific read status key
+        const READ_ANNOUNCEMENTS_KEY =
+          `readAnnouncements_${userEmail}`;
+
+        // Load shared announcements
         const savedAnnouncements =
           await getData<Announcement[]>(
-            ANNOUNCEMENTS_KEY,
+            ANNOUNCEMENTS_KEY
           );
 
         if (savedAnnouncements) {
@@ -72,20 +89,22 @@ export default function AnnouncementsScreen() {
 
           await saveData(
             ANNOUNCEMENTS_KEY,
-            initialAnnouncements,
+            initialAnnouncements
           );
         }
 
-        // Load read status
+        // Load this user's read status
         const savedReadAnnouncements =
           await getData<number[]>(
-            READ_ANNOUNCEMENTS_KEY,
+            READ_ANNOUNCEMENTS_KEY
           );
 
         if (savedReadAnnouncements) {
           setReadAnnouncements(
-            savedReadAnnouncements,
+            savedReadAnnouncements
           );
+        } else {
+          setReadAnnouncements([]);
         }
       };
 
@@ -94,11 +113,22 @@ export default function AnnouncementsScreen() {
   );
 
   const openAnnouncement = async (
-    announcement: Announcement,
+    announcement: Announcement
   ) => {
+    // Get current user
+    const profile =
+      await getData<ProfileData>(PROFILE_KEY);
+
+    const userEmail =
+      profile?.email?.trim().toLowerCase() || 'guest';
+
+    // User-specific read status
+    const READ_ANNOUNCEMENTS_KEY =
+      `readAnnouncements_${userEmail}`;
+
     if (
       !readAnnouncements.includes(
-        announcement.id,
+        announcement.id
       )
     ) {
       const updatedReadAnnouncements = [
@@ -107,18 +137,18 @@ export default function AnnouncementsScreen() {
       ];
 
       setReadAnnouncements(
-        updatedReadAnnouncements,
+        updatedReadAnnouncements
       );
 
       await saveData(
         READ_ANNOUNCEMENTS_KEY,
-        updatedReadAnnouncements,
+        updatedReadAnnouncements
       );
     }
 
     Alert.alert(
       announcement.title,
-      `${announcement.message}\n\nDate: ${announcement.date}`,
+      `${announcement.message}\n\nDate: ${announcement.date}`
     );
   };
 
@@ -142,7 +172,7 @@ export default function AnnouncementsScreen() {
       {announcements.map((announcement) => {
         const isRead =
           readAnnouncements.includes(
-            announcement.id,
+            announcement.id
           );
 
         return (

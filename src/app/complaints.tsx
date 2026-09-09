@@ -8,29 +8,52 @@ import {
   Alert,
 } from 'react-native';
 
-import { useCallback, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
-import { getData, saveData } from '../data/storage';
+import {
+  useCallback,
+  useState,
+} from 'react';
+
+import {
+  useFocusEffect,
+} from 'expo-router';
+
+import {
+  getData,
+  saveData,
+} from '../data/storage';
 
 type Complaint = {
   id: string;
+  email: string;
   text: string;
   date: string;
-  status: 'Submitted' | 'In Progress' | 'Resolved';
+  status:
+    | 'Submitted'
+    | 'In Progress'
+    | 'Resolved';
+};
+
+type ProfileData = {
+  name: string;
+  email: string;
+  flat: string;
 };
 
 const STORAGE_KEY = 'complaints';
 const ROLE_KEY = 'userRole';
+const PROFILE_KEY = 'profileData';
 
 const initialComplaints: Complaint[] = [
   {
     id: 'CMP-001',
+    email: 'demo1@societyhub.com',
     text: 'Water leakage at Block A',
     date: '08 Sep 2026',
     status: 'Submitted',
   },
   {
     id: 'CMP-002',
+    email: 'demo2@societyhub.com',
     text: 'Street light not working',
     date: '07 Sep 2026',
     status: 'In Progress',
@@ -38,39 +61,86 @@ const initialComplaints: Complaint[] = [
 ];
 
 export default function ComplaintsScreen() {
-  const [complaint, setComplaint] = useState('');
+  const [complaint, setComplaint] =
+    useState('');
+
   const [complaints, setComplaints] =
     useState<Complaint[]>([]);
+
   const [role, setRole] = useState<
     'resident' | 'admin'
   >('resident');
 
-  // Load complaints and role whenever screen becomes active
+  const [userEmail, setUserEmail] =
+    useState('');
+
+  // ========================================
+  // LOAD COMPLAINTS AND USER
+  // ========================================
+
   useFocusEffect(
     useCallback(() => {
       const loadData = async () => {
-        // Load role
-        const savedRole =
-          await getData<string>(ROLE_KEY);
+        try {
+          // --------------------------------
+          // LOAD ROLE
+          // --------------------------------
 
-        if (savedRole === 'admin') {
-          setRole('admin');
-        } else {
-          setRole('resident');
-        }
+          const savedRole =
+            await getData<string>(
+              ROLE_KEY
+            );
 
-        // Load complaints
-        const savedComplaints =
-          await getData<Complaint[]>(STORAGE_KEY);
+          if (savedRole === 'admin') {
+            setRole('admin');
+          } else {
+            setRole('resident');
+          }
 
-        if (savedComplaints) {
-          setComplaints(savedComplaints);
-        } else {
-          setComplaints(initialComplaints);
+          // --------------------------------
+          // LOAD PROFILE
+          // --------------------------------
 
-          await saveData(
-            STORAGE_KEY,
-            initialComplaints,
+          const profile =
+            await getData<ProfileData>(
+              PROFILE_KEY
+            );
+
+          const email =
+            profile?.email
+              ?.trim()
+              .toLowerCase() || '';
+
+          setUserEmail(email);
+
+          // --------------------------------
+          // LOAD SHARED COMPLAINTS
+          // --------------------------------
+
+          const savedComplaints =
+            await getData<Complaint[]>(
+              STORAGE_KEY
+            );
+
+          if (savedComplaints) {
+            setComplaints(
+              savedComplaints
+            );
+          } else {
+            setComplaints(
+              initialComplaints
+            );
+
+            await saveData(
+              STORAGE_KEY,
+              initialComplaints
+            );
+          }
+
+        } catch (error) {
+          console.log(
+            'Error loading complaints:',
+            error
           );
         }
       };
@@ -79,47 +149,68 @@ export default function ComplaintsScreen() {
     }, [])
   );
 
-  // --------------------------------
+  // ========================================
   // RESIDENT - SUBMIT COMPLAINT
-  // --------------------------------
+  // ========================================
 
   const submitComplaint = async () => {
+    if (!userEmail) {
+      Alert.alert(
+        'Login Required',
+        'Please login before submitting a complaint.'
+      );
+
+      return;
+    }
+
     if (!complaint.trim()) {
       Alert.alert(
         'Required',
-        'Please describe your complaint.',
+        'Please describe your complaint.'
       );
+
       return;
     }
 
     // Find highest complaint number
-    const highestNumber = complaints.reduce(
-      (max, item) => {
-        const number = parseInt(
-          item.id.replace('CMP-', ''),
-          10,
-        );
 
-        return number > max ? number : max;
-      },
-      0,
-    );
+    const highestNumber =
+      complaints.reduce(
+        (max, item) => {
+          const number =
+            parseInt(
+              item.id.replace(
+                'CMP-',
+                ''
+              ),
+              10
+            );
+
+          return number > max
+            ? number
+            : max;
+        },
+        0
+      );
 
     const newComplaint: Complaint = {
       id: `CMP-${String(
-        highestNumber + 1,
+        highestNumber + 1
       ).padStart(3, '0')}`,
+
+      email: userEmail,
 
       text: complaint.trim(),
 
-      date: new Date().toLocaleDateString(
-        'en-GB',
-        {
-          day: '2-digit',
-          month: 'short',
-          year: 'numeric',
-        },
-      ),
+      date:
+        new Date().toLocaleDateString(
+          'en-GB',
+          {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          }
+        ),
 
       status: 'Submitted',
     };
@@ -129,28 +220,30 @@ export default function ComplaintsScreen() {
       ...complaints,
     ];
 
-    setComplaints(updatedComplaints);
+    setComplaints(
+      updatedComplaints
+    );
 
     await saveData(
       STORAGE_KEY,
-      updatedComplaints,
+      updatedComplaints
     );
 
     setComplaint('');
 
     Alert.alert(
       'Complaint Submitted',
-      `Your complaint has been submitted successfully.\n\nComplaint ID: ${newComplaint.id}`,
+      `Your complaint has been submitted successfully.\n\nComplaint ID: ${newComplaint.id}`
     );
   };
 
-  // --------------------------------
+  // ========================================
   // ADMIN - UPDATE STATUS
-  // --------------------------------
+  // ========================================
 
   const updateComplaintStatus = async (
     id: string,
-    newStatus: Complaint['status'],
+    newStatus: Complaint['status']
   ) => {
     const updatedComplaints =
       complaints.map((item) =>
@@ -159,28 +252,30 @@ export default function ComplaintsScreen() {
               ...item,
               status: newStatus,
             }
-          : item,
+          : item
       );
 
-    setComplaints(updatedComplaints);
+    setComplaints(
+      updatedComplaints
+    );
 
     await saveData(
       STORAGE_KEY,
-      updatedComplaints,
+      updatedComplaints
     );
 
     Alert.alert(
       'Status Updated',
-      `${id} is now marked as "${newStatus}".`,
+      `${id} is now marked as "${newStatus}".`
     );
   };
 
-  // --------------------------------
+  // ========================================
   // STATUS STYLES
-  // --------------------------------
+  // ========================================
 
   const getStatusStyle = (
-    status: Complaint['status'],
+    status: Complaint['status']
   ) => {
     if (status === 'Resolved') {
       return styles.resolvedBadge;
@@ -194,7 +289,7 @@ export default function ComplaintsScreen() {
   };
 
   const getStatusTextStyle = (
-    status: Complaint['status'],
+    status: Complaint['status']
   ) => {
     if (status === 'Resolved') {
       return styles.resolvedText;
@@ -207,12 +302,12 @@ export default function ComplaintsScreen() {
     return styles.submittedText;
   };
 
-  // --------------------------------
-  // ADMIN STATUS BUTTONS
-  // --------------------------------
+  // ========================================
+  // ADMIN CONTROLS
+  // ========================================
 
   const renderAdminControls = (
-    item: Complaint,
+    item: Complaint
   ) => {
     if (role !== 'admin') {
       return null;
@@ -220,23 +315,35 @@ export default function ComplaintsScreen() {
 
     return (
       <View style={styles.adminControls}>
-        <Text style={styles.adminControlTitle}>
+
+        <Text
+          style={
+            styles.adminControlTitle
+          }
+        >
           Update Status
         </Text>
 
-        <View style={styles.statusButtonsRow}>
+        <View
+          style={
+            styles.statusButtonsRow
+          }
+        >
+
+          {/* SUBMITTED */}
 
           <Pressable
             style={[
               styles.statusButton,
               styles.submittedButton,
-              item.status === 'Submitted' &&
+              item.status ===
+                'Submitted' &&
                 styles.activeStatusButton,
             ]}
             onPress={() =>
               updateComplaintStatus(
                 item.id,
-                'Submitted',
+                'Submitted'
               )
             }
           >
@@ -250,17 +357,20 @@ export default function ComplaintsScreen() {
             </Text>
           </Pressable>
 
+          {/* IN PROGRESS */}
+
           <Pressable
             style={[
               styles.statusButton,
               styles.progressButton,
-              item.status === 'In Progress' &&
+              item.status ===
+                'In Progress' &&
                 styles.activeStatusButton,
             ]}
             onPress={() =>
               updateComplaintStatus(
                 item.id,
-                'In Progress',
+                'In Progress'
               )
             }
           >
@@ -274,17 +384,20 @@ export default function ComplaintsScreen() {
             </Text>
           </Pressable>
 
+          {/* RESOLVED */}
+
           <Pressable
             style={[
               styles.statusButton,
               styles.resolvedButton,
-              item.status === 'Resolved' &&
+              item.status ===
+                'Resolved' &&
                 styles.activeStatusButton,
             ]}
             onPress={() =>
               updateComplaintStatus(
                 item.id,
-                'Resolved',
+                'Resolved'
               )
             }
           >
@@ -299,9 +412,27 @@ export default function ComplaintsScreen() {
           </Pressable>
 
         </View>
+
       </View>
     );
   };
+
+  // ========================================
+  // RESIDENT FILTER
+  // ========================================
+
+  const visibleComplaints =
+    role === 'admin'
+      ? complaints
+      : complaints.filter(
+          (item) =>
+            item.email ===
+            userEmail
+        );
+
+  // ========================================
+  // UI
+  // ========================================
 
   return (
     <ScrollView
@@ -309,10 +440,17 @@ export default function ComplaintsScreen() {
       showsVerticalScrollIndicator={false}
     >
 
-      {/* Header */}
+      {/* ==================================
+          HEADER
+      ================================== */}
 
       <View style={styles.headerRow}>
-        <View>
+
+        {/* HEADER CONTENT */}
+
+        <View
+          style={styles.headerContent}
+        >
           <Text style={styles.title}>
             Complaints
           </Text>
@@ -324,19 +462,29 @@ export default function ComplaintsScreen() {
           </Text>
         </View>
 
+        {/* ADMIN BADGE */}
+
         {role === 'admin' && (
           <View style={styles.adminBadge}>
-            <Text style={styles.adminBadgeText}>
+            <Text
+              style={
+                styles.adminBadgeText
+              }
+            >
               ADMIN
             </Text>
           </View>
         )}
+
       </View>
 
-      {/* Resident Submit Form */}
+      {/* ==================================
+          RESIDENT SUBMIT FORM
+      ================================== */}
 
       {role === 'resident' && (
         <View style={styles.formCard}>
+
           <Text style={styles.label}>
             Complaint
           </Text>
@@ -354,14 +502,19 @@ export default function ComplaintsScreen() {
             style={styles.button}
             onPress={submitComplaint}
           >
-            <Text style={styles.buttonText}>
+            <Text
+              style={styles.buttonText}
+            >
               Submit Complaint
             </Text>
           </Pressable>
+
         </View>
       )}
 
-      {/* Section Title */}
+      {/* ==================================
+          SECTION TITLE
+      ================================== */}
 
       <Text style={styles.sectionTitle}>
         {role === 'admin'
@@ -369,10 +522,14 @@ export default function ComplaintsScreen() {
           : 'My Complaints'}
       </Text>
 
-      {/* Complaint List */}
+      {/* ==================================
+          COMPLAINT LIST
+      ================================== */}
 
-      {complaints.length === 0 ? (
+      {visibleComplaints.length === 0 ? (
+
         <View style={styles.emptyCard}>
+
           <Text style={styles.emptyIcon}>
             📝
           </Text>
@@ -386,78 +543,152 @@ export default function ComplaintsScreen() {
               ? 'There are no complaints to manage.'
               : 'You have not submitted any complaints yet.'}
           </Text>
+
         </View>
+
       ) : (
-        complaints.map((item) => (
-          <View
-            style={styles.complaintCard}
-            key={item.id}
-          >
 
-            {/* Complaint Text */}
-
-            <Text style={styles.complaintText}>
-              {item.text}
-            </Text>
-
-            <View style={styles.divider} />
-
-            {/* Details */}
-
-            <View style={styles.detailsRow}>
-
-              <View style={styles.detailColumn}>
-                <Text style={styles.detailLabel}>
-                  Complaint ID
-                </Text>
-
-                <Text style={styles.detailValue}>
-                  {item.id}
-                </Text>
-              </View>
-
-              <View style={styles.detailColumn}>
-                <Text style={styles.detailLabel}>
-                  Date
-                </Text>
-
-                <Text style={styles.detailValue}>
-                  {item.date}
-                </Text>
-              </View>
-
-            </View>
-
-            {/* Status */}
-
-            <Text style={styles.statusLabel}>
-              Status
-            </Text>
+        visibleComplaints.map(
+          (item) => (
 
             <View
-              style={[
-                styles.statusBadge,
-                getStatusStyle(item.status),
-              ]}
+              style={
+                styles.complaintCard
+              }
+              key={item.id}
             >
+
+              {/* COMPLAINT */}
+
               <Text
+                style={
+                  styles.complaintText
+                }
+              >
+                {item.text}
+              </Text>
+
+              <View
+                style={styles.divider}
+              />
+
+              {/* DETAILS */}
+
+              <View
+                style={styles.detailsRow}
+              >
+
+                <View
+                  style={
+                    styles.detailColumn
+                  }
+                >
+                  <Text
+                    style={
+                      styles.detailLabel
+                    }
+                  >
+                    Complaint ID
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.detailValue
+                    }
+                  >
+                    {item.id}
+                  </Text>
+                </View>
+
+                <View
+                  style={
+                    styles.detailColumn
+                  }
+                >
+                  <Text
+                    style={
+                      styles.detailLabel
+                    }
+                  >
+                    Date
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.detailValue
+                    }
+                  >
+                    {item.date}
+                  </Text>
+                </View>
+
+              </View>
+
+              {/* ADMIN - RESIDENT EMAIL */}
+
+              {role === 'admin' && (
+                <View
+                  style={
+                    styles.residentInfo
+                  }
+                >
+
+                  <Text
+                    style={
+                      styles.detailLabel
+                    }
+                  >
+                    Submitted By
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.detailValue
+                    }
+                  >
+                    {item.email}
+                  </Text>
+
+                </View>
+              )}
+
+              {/* STATUS */}
+
+              <Text
+                style={styles.statusLabel}
+              >
+                Status
+              </Text>
+
+              <View
                 style={[
-                  styles.statusText,
-                  getStatusTextStyle(
-                    item.status,
+                  styles.statusBadge,
+                  getStatusStyle(
+                    item.status
                   ),
                 ]}
               >
-                {item.status}
-              </Text>
+
+                <Text
+                  style={[
+                    styles.statusText,
+                    getStatusTextStyle(
+                      item.status
+                    ),
+                  ]}
+                >
+                  {item.status}
+                </Text>
+
+              </View>
+
+              {/* ADMIN CONTROLS */}
+
+              {renderAdminControls(item)}
+
             </View>
-
-            {/* Admin Controls */}
-
-            {renderAdminControls(item)}
-
-          </View>
-        ))
+          )
+        )
       )}
 
       <View style={styles.bottomSpace} />
@@ -466,7 +697,12 @@ export default function ComplaintsScreen() {
   );
 }
 
+// ========================================
+// STYLES
+// ========================================
+
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
@@ -474,11 +710,21 @@ const styles = StyleSheet.create({
     paddingTop: 60,
   },
 
+  // ======================================
+  // FIXED RESPONSIVE HEADER
+  // ======================================
+
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
+    width: '100%',
     marginBottom: 30,
+  },
+
+  headerContent: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 12,
   },
 
   title: {
@@ -492,7 +738,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#64748B',
     lineHeight: 25,
-    maxWidth: 300,
   },
 
   adminBadge: {
@@ -500,6 +745,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 10,
+
+    // Important responsive properties
+    flexShrink: 0,
+    alignSelf: 'flex-start',
+    marginTop: 2,
   },
 
   adminBadgeText: {
@@ -507,6 +757,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
+
+  // ======================================
+  // FORM
+  // ======================================
 
   formCard: {
     backgroundColor: '#FFFFFF',
@@ -551,12 +805,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
+  // ======================================
+  // SECTION
+  // ======================================
+
   sectionTitle: {
     fontSize: 30,
     fontWeight: '700',
     color: '#0F172A',
     marginBottom: 20,
   },
+
+  // ======================================
+  // COMPLAINT CARD
+  // ======================================
 
   complaintCard: {
     backgroundColor: '#FFFFFF',
@@ -602,6 +864,14 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
 
+  residentInfo: {
+    marginBottom: 20,
+  },
+
+  // ======================================
+  // STATUS
+  // ======================================
+
   statusLabel: {
     fontSize: 14,
     fontWeight: '600',
@@ -645,7 +915,9 @@ const styles = StyleSheet.create({
     color: '#16A34A',
   },
 
-  // Admin controls
+  // ======================================
+  // ADMIN CONTROLS
+  // ======================================
 
   adminControls: {
     marginTop: 22,
@@ -713,6 +985,10 @@ const styles = StyleSheet.create({
     color: '#16A34A',
   },
 
+  // ======================================
+  // EMPTY
+  // ======================================
+
   emptyCard: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
@@ -744,4 +1020,5 @@ const styles = StyleSheet.create({
   bottomSpace: {
     height: 40,
   },
+
 });

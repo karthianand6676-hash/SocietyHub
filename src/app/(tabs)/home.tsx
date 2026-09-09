@@ -7,9 +7,20 @@ import {
   Alert,
 } from 'react-native';
 
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { getData, removeData } from '../../data/storage';
+import {
+  router,
+  useFocusEffect,
+} from 'expo-router';
+
+import {
+  useCallback,
+  useState,
+} from 'react';
+
+import {
+  getData,
+  removeData,
+} from '../../data/storage';
 
 type ProfileData = {
   name: string;
@@ -17,33 +28,166 @@ type ProfileData = {
   flat: string;
 };
 
+type Announcement = {
+  id: string;
+  title: string;
+  message: string;
+  date: string;
+  priority?: string;
+};
+
+type Event = {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  location: string;
+  participants?: number;
+};
+
+type Facility = {
+  id: number;
+  icon: string;
+  name: string;
+  description: string;
+};
+
 const PROFILE_KEY = 'profileData';
 const LOGIN_KEY = 'isLoggedIn';
 
+const ANNOUNCEMENTS_KEY = 'announcements';
+const EVENTS_KEY = 'events';
+const FACILITIES_KEY = 'facilities';
+
 export default function HomeScreen() {
-  const [profile, setProfile] = useState<ProfileData>({
-    name: 'Karthikeyan',
-    email: 'resident@example.com',
-    flat: '2644',
-  });
+  // ========================================
+  // PROFILE
+  // ========================================
 
-  const [loggingOut, setLoggingOut] = useState(false);
+  const [profile, setProfile] =
+    useState<ProfileData>({
+      name: 'Karthikeyan',
+      email: 'resident@example.com',
+      flat: '2644',
+    });
 
-  // Load profile every time Home screen becomes active
+  // ========================================
+  // SOCIETY COUNTS
+  // ========================================
+
+  const [announcementCount, setAnnouncementCount] =
+    useState(0);
+
+  const [eventCount, setEventCount] =
+    useState(0);
+
+  const [facilityCount, setFacilityCount] =
+    useState(0);
+
+  // ========================================
+  // RECENT ANNOUNCEMENTS
+  // ========================================
+
+  const [recentAnnouncements, setRecentAnnouncements] =
+    useState<Announcement[]>([]);
+
+  const [loggingOut, setLoggingOut] =
+    useState(false);
+
+  // ========================================
+  // LOAD HOME DATA
+  // ========================================
+
   useFocusEffect(
     useCallback(() => {
-      const loadProfile = async () => {
-        const savedProfile =
-          await getData<ProfileData>(PROFILE_KEY);
+      const loadHomeData = async () => {
+        try {
+          // --------------------------------
+          // LOAD PROFILE
+          // --------------------------------
 
-        if (savedProfile) {
-          setProfile(savedProfile);
+          const savedProfile =
+            await getData<ProfileData>(
+              PROFILE_KEY
+            );
+
+          if (savedProfile) {
+            setProfile(savedProfile);
+          }
+
+          // --------------------------------
+          // LOAD ANNOUNCEMENTS
+          // --------------------------------
+
+          const announcements =
+            await getData<Announcement[]>(
+              ANNOUNCEMENTS_KEY
+            );
+
+          if (announcements) {
+            setAnnouncementCount(
+              announcements.length
+            );
+
+            // Show latest 2 announcements
+            setRecentAnnouncements(
+              announcements.slice(0, 2)
+            );
+          } else {
+            setAnnouncementCount(0);
+            setRecentAnnouncements([]);
+          }
+
+          // --------------------------------
+          // LOAD EVENTS
+          // --------------------------------
+
+          const events =
+            await getData<Event[]>(
+              EVENTS_KEY
+            );
+
+          if (events) {
+            setEventCount(
+              events.length
+            );
+          } else {
+            setEventCount(0);
+          }
+
+          // --------------------------------
+          // LOAD FACILITIES
+          // --------------------------------
+
+          const facilities =
+            await getData<Facility[]>(
+              FACILITIES_KEY
+            );
+
+          if (facilities) {
+            setFacilityCount(
+              facilities.length
+            );
+          } else {
+            setFacilityCount(0);
+          }
+
+        } catch (error) {
+          console.log(
+            'Error loading home data:',
+            error
+          );
         }
       };
 
-      loadProfile();
-    }, []),
+      loadHomeData();
+    }, [])
   );
+
+  // ========================================
+  // LOGOUT
+  // ========================================
 
   const handleLogout = async () => {
     if (loggingOut) {
@@ -57,14 +201,25 @@ export default function HomeScreen() {
     router.replace('/login');
   };
 
+  // ========================================
+  // UI
+  // ========================================
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
     >
-      {/* Header */}
+
+      {/* ==================================
+          HEADER
+      ================================== */}
+
       <View style={styles.header}>
+
         <View>
+
           <Text style={styles.greeting}>
             Welcome back 👋
           </Text>
@@ -76,20 +231,28 @@ export default function HomeScreen() {
           <Text style={styles.flat}>
             Flat {profile.flat}
           </Text>
+
         </View>
 
         <Pressable
           style={styles.profileButton}
-          onPress={() => router.push('/profile')}
+          onPress={() =>
+            router.push('/profile')
+          }
         >
           <Text style={styles.profileText}>
             👤
           </Text>
         </Pressable>
+
       </View>
 
-      {/* Society Card */}
+      {/* ==================================
+          SOCIETY CARD
+      ================================== */}
+
       <View style={styles.societyCard}>
+
         <Text style={styles.societyTitle}>
           SocietyHub
         </Text>
@@ -104,71 +267,109 @@ export default function HomeScreen() {
           Stay updated with your society activities,
           announcements and services.
         </Text>
+
       </View>
 
-      {/* Quick Stats */}
+      {/* ==================================
+          QUICK STATS
+      ================================== */}
+
       <Text style={styles.sectionTitle}>
         Your Society
       </Text>
 
       <View style={styles.statsRow}>
-        <View style={styles.statCard}>
+
+        {/* ANNOUNCEMENTS */}
+
+        <Pressable
+          style={styles.statCard}
+          onPress={() =>
+            router.push('/announcment')
+          }
+        >
+
           <Text style={styles.statIcon}>
             📢
           </Text>
 
           <Text style={styles.statNumber}>
-            3
+            {announcementCount}
           </Text>
 
           <Text style={styles.statLabel}>
             Updates
           </Text>
-        </View>
 
-        <View style={styles.statCard}>
+        </Pressable>
+
+        {/* EVENTS */}
+
+        <Pressable
+          style={styles.statCard}
+          onPress={() =>
+            router.push('/events')
+          }
+        >
+
           <Text style={styles.statIcon}>
             📅
           </Text>
 
           <Text style={styles.statNumber}>
-            3
+            {eventCount}
           </Text>
 
           <Text style={styles.statLabel}>
             Events
           </Text>
-        </View>
 
-        <View style={styles.statCard}>
+        </Pressable>
+
+        {/* FACILITIES */}
+
+        <Pressable
+          style={styles.statCard}
+          onPress={() =>
+            router.push('/facilities')
+          }
+        >
+
           <Text style={styles.statIcon}>
             🏢
           </Text>
 
           <Text style={styles.statNumber}>
-            3
+            {facilityCount}
           </Text>
 
           <Text style={styles.statLabel}>
             Facilities
           </Text>
-        </View>
+
+        </Pressable>
+
       </View>
 
-      {/* Quick Access */}
+      {/* ==================================
+          QUICK ACCESS
+      ================================== */}
+
       <Text style={styles.sectionTitle}>
         Quick Access
       </Text>
 
       <View style={styles.grid}>
 
-        {/* Announcements */}
+        {/* ANNOUNCEMENTS */}
+
         <Pressable
           style={styles.card}
           onPress={() =>
             router.push('/announcment')
           }
         >
+
           <Text style={styles.icon}>
             📢
           </Text>
@@ -180,15 +381,18 @@ export default function HomeScreen() {
           <Text style={styles.cardSubtitle}>
             Society updates
           </Text>
+
         </Pressable>
 
-        {/* Complaints */}
+        {/* COMPLAINTS */}
+
         <Pressable
           style={styles.card}
           onPress={() =>
             router.push('/complaints')
           }
         >
+
           <Text style={styles.icon}>
             📝
           </Text>
@@ -200,15 +404,18 @@ export default function HomeScreen() {
           <Text style={styles.cardSubtitle}>
             Report an issue
           </Text>
+
         </Pressable>
 
-        {/* Events */}
+        {/* EVENTS */}
+
         <Pressable
           style={styles.card}
           onPress={() =>
             router.push('/events')
           }
         >
+
           <Text style={styles.icon}>
             📅
           </Text>
@@ -220,15 +427,18 @@ export default function HomeScreen() {
           <Text style={styles.cardSubtitle}>
             Upcoming events
           </Text>
+
         </Pressable>
 
-        {/* Facilities */}
+        {/* FACILITIES */}
+
         <Pressable
           style={styles.card}
           onPress={() =>
             router.push('/facilities')
           }
         >
+
           <Text style={styles.icon}>
             🏢
           </Text>
@@ -240,15 +450,18 @@ export default function HomeScreen() {
           <Text style={styles.cardSubtitle}>
             Book facilities
           </Text>
+
         </Pressable>
 
-        {/* Polls */}
+        {/* POLLS */}
+
         <Pressable
           style={styles.card}
           onPress={() =>
             router.push('/polls')
           }
         >
+
           <Text style={styles.icon}>
             🗳️
           </Text>
@@ -260,15 +473,18 @@ export default function HomeScreen() {
           <Text style={styles.cardSubtitle}>
             Give your opinion
           </Text>
+
         </Pressable>
 
-        {/* Profile */}
+        {/* PROFILE */}
+
         <Pressable
           style={styles.card}
           onPress={() =>
             router.push('/profile')
           }
         >
+
           <Text style={styles.icon}>
             👤
           </Text>
@@ -280,12 +496,17 @@ export default function HomeScreen() {
           <Text style={styles.cardSubtitle}>
             Account details
           </Text>
+
         </Pressable>
 
       </View>
 
-      {/* Recent Updates */}
+      {/* ==================================
+          RECENT UPDATES
+      ================================== */}
+
       <View style={styles.sectionHeader}>
+
         <Text style={styles.sectionTitle}>
           Recent Updates
         </Text>
@@ -295,65 +516,86 @@ export default function HomeScreen() {
             router.push('/announcment')
           }
         >
+
           <Text style={styles.viewText}>
             View All
           </Text>
+
         </Pressable>
+
       </View>
 
-      {/* Update 1 */}
-      <Pressable
-        style={styles.updateCard}
-        onPress={() =>
-          router.push('/announcment')
-        }
-      >
-        <Text style={styles.updateIcon}>
-          📢
-        </Text>
+      {/* ==================================
+          DYNAMIC RECENT ANNOUNCEMENTS
+      ================================== */}
 
-        <View style={styles.updateContent}>
-          <Text style={styles.updateTitle}>
-            Society Meeting
+      {recentAnnouncements.length > 0 ? (
+
+        recentAnnouncements.map(
+          (announcement) => (
+
+            <Pressable
+              key={announcement.id}
+              style={styles.updateCard}
+              onPress={() =>
+                router.push('/announcment')
+              }
+            >
+
+              <Text style={styles.updateIcon}>
+                📢
+              </Text>
+
+              <View
+                style={styles.updateContent}
+              >
+
+                <Text
+                  style={styles.updateTitle}
+                >
+                  {announcement.title}
+                </Text>
+
+                <Text
+                  style={styles.updateText}
+                  numberOfLines={2}
+                >
+                  {announcement.message}
+                </Text>
+
+                <Text
+                  style={styles.updateDate}
+                >
+                  {announcement.date}
+                </Text>
+
+              </View>
+
+            </Pressable>
+
+          )
+        )
+
+      ) : (
+
+        <View style={styles.emptyUpdateCard}>
+
+          <Text style={styles.emptyUpdateIcon}>
+            📢
           </Text>
 
-          <Text style={styles.updateText}>
-            Monthly society meeting will be held this Sunday.
+          <Text style={styles.emptyUpdateText}>
+            No recent announcements.
           </Text>
 
-          <Text style={styles.updateDate}>
-            08 Sept 2026
-          </Text>
         </View>
-      </Pressable>
 
-      {/* Update 2 */}
-      <Pressable
-        style={styles.updateCard}
-        onPress={() =>
-          router.push('/announcment')
-        }
-      >
-        <Text style={styles.updateIcon}>
-          🔧
-        </Text>
+      )}
 
-        <View style={styles.updateContent}>
-          <Text style={styles.updateTitle}>
-            Water Maintenance
-          </Text>
+      {/* ==================================
+          LOGOUT
+      ================================== */}
 
-          <Text style={styles.updateText}>
-            Water maintenance work is scheduled tomorrow.
-          </Text>
-
-          <Text style={styles.updateDate}>
-            07 Sept 2026
-          </Text>
-        </View>
-      </Pressable>
-
-      {/* Logout */}
       <Pressable
         style={styles.logoutButton}
         onPress={() => {
@@ -370,13 +612,15 @@ export default function HomeScreen() {
                 style: 'destructive',
                 onPress: handleLogout,
               },
-            ],
+            ]
           );
         }}
       >
+
         <Text style={styles.logoutText}>
           Logout
         </Text>
+
       </Pressable>
 
       <View style={styles.bottomSpace} />
@@ -384,6 +628,10 @@ export default function HomeScreen() {
     </ScrollView>
   );
 }
+
+// ========================================
+// STYLES
+// ========================================
 
 const styles = StyleSheet.create({
   container: {
@@ -590,6 +838,26 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     marginTop: 8,
     fontWeight: '600',
+  },
+
+  emptyUpdateCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 22,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+
+  emptyUpdateIcon: {
+    fontSize: 28,
+    marginBottom: 8,
+  },
+
+  emptyUpdateText: {
+    fontSize: 14,
+    color: '#64748B',
   },
 
   logoutButton: {

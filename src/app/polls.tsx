@@ -6,9 +6,17 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { useEffect, useState } from 'react';
-import { router } from 'expo-router';
-import { getData, saveData } from '../data/storage';
+
+import { useCallback, useState } from 'react';
+import {
+  router,
+  useFocusEffect,
+} from 'expo-router';
+
+import {
+  getData,
+  saveData,
+} from '../data/storage';
 
 type Poll = {
   id: number;
@@ -19,16 +27,22 @@ type Poll = {
   noVotes: number;
 };
 
+type ProfileData = {
+  name: string;
+  email: string;
+  flat: string;
+};
+
 const POLLS_KEY = 'polls';
-const SELECTED_OPTIONS_KEY = 'selectedPollOptions';
-const VOTED_POLLS_KEY = 'votedPolls';
+const PROFILE_KEY = 'profileData';
 
 const initialPolls: Poll[] = [
   {
     id: 1,
     icon: '🗳️',
     title: 'Parking Area Improvement',
-    question: 'Should the society improve the parking area?',
+    question:
+      'Should the society improve the parking area?',
     yesVotes: 12,
     noVotes: 5,
   },
@@ -36,52 +50,122 @@ const initialPolls: Poll[] = [
     id: 2,
     icon: '📊',
     title: 'Security Improvement',
-    question: 'Should additional security cameras be installed?',
+    question:
+      'Should additional security cameras be installed?',
     yesVotes: 18,
     noVotes: 7,
   },
 ];
 
 export default function PollsScreen() {
-  const [polls, setPolls] = useState<Poll[]>([]);
-  
-  const [selectedOptions, setSelectedOptions] = useState<{
+  const [polls, setPolls] =
+    useState<Poll[]>([]);
+
+  const [
+    selectedOptions,
+    setSelectedOptions,
+  ] = useState<{
     [key: number]: 'Yes' | 'No' | null;
   }>({});
 
-  const [votedPolls, setVotedPolls] = useState<number[]>([]);
+  const [
+    votedPolls,
+    setVotedPolls,
+  ] = useState<number[]>([]);
 
-  // Load saved poll data
-  useEffect(() => {
-    const loadPollData = async () => {
-      const savedPolls = await getData<Poll[]>(POLLS_KEY);
+  const [userEmail, setUserEmail] =
+    useState('');
 
-      const savedSelectedOptions =
-        await getData<{
-          [key: number]: 'Yes' | 'No' | null;
-        }>(SELECTED_OPTIONS_KEY);
+  // --------------------------------
+  // LOAD POLL DATA
+  // --------------------------------
 
-      const savedVotedPolls =
-        await getData<number[]>(VOTED_POLLS_KEY);
+  useFocusEffect(
+    useCallback(() => {
+      const loadPollData = async () => {
+        // Get currently logged-in user's profile
+        const profile =
+          await getData<ProfileData>(
+            PROFILE_KEY,
+          );
 
-      if (savedPolls) {
-        setPolls(savedPolls);
-      } else {
-        setPolls(initialPolls);
-        await saveData(POLLS_KEY, initialPolls);
-      }
+        const email =
+          profile?.email?.trim().toLowerCase() || '';
 
-      if (savedSelectedOptions) {
-        setSelectedOptions(savedSelectedOptions);
-      }
+        setUserEmail(email);
 
-      if (savedVotedPolls) {
-        setVotedPolls(savedVotedPolls);
-      }
-    };
+        // --------------------------------
+        // LOAD SHARED POLLS
+        // --------------------------------
 
-    loadPollData();
-  }, []);
+        const savedPolls =
+          await getData<Poll[]>(POLLS_KEY);
+
+        if (savedPolls) {
+          setPolls(savedPolls);
+        } else {
+          setPolls(initialPolls);
+
+          await saveData(
+            POLLS_KEY,
+            initialPolls,
+          );
+        }
+
+        // --------------------------------
+        // LOAD THIS USER'S VOTE DATA
+        // --------------------------------
+
+        if (email) {
+          const userVotedPollsKey =
+            `votedPolls_${email}`;
+
+          const userSelectedOptionsKey =
+            `selectedPollOptions_${email}`;
+
+          const savedVotedPolls =
+            await getData<number[]>(
+              userVotedPollsKey,
+            );
+
+          const savedSelectedOptions =
+            await getData<{
+              [key: number]:
+                | 'Yes'
+                | 'No'
+                | null;
+            }>(
+              userSelectedOptionsKey,
+            );
+
+          if (savedVotedPolls) {
+            setVotedPolls(
+              savedVotedPolls,
+            );
+          } else {
+            setVotedPolls([]);
+          }
+
+          if (savedSelectedOptions) {
+            setSelectedOptions(
+              savedSelectedOptions,
+            );
+          } else {
+            setSelectedOptions({});
+          }
+        } else {
+          setVotedPolls([]);
+          setSelectedOptions({});
+        }
+      };
+
+      loadPollData();
+    }, [])
+  );
+
+  // --------------------------------
+  // SELECT YES / NO
+  // --------------------------------
 
   const selectOption = (
     pollId: number,
@@ -97,8 +181,23 @@ export default function PollsScreen() {
     });
   };
 
-  const submitVote = async (pollId: number) => {
-    const selected = selectedOptions[pollId];
+  // --------------------------------
+  // SUBMIT VOTE
+  // --------------------------------
+
+  const submitVote = async (
+    pollId: number,
+  ) => {
+    const selected =
+      selectedOptions[pollId];
+
+    if (!userEmail) {
+      Alert.alert(
+        'Login Required',
+        'Please login before voting.',
+      );
+      return;
+    }
 
     if (!selected) {
       Alert.alert(
@@ -112,23 +211,34 @@ export default function PollsScreen() {
       return;
     }
 
-    const updatedPolls = polls.map((poll) => {
-      if (poll.id !== pollId) {
-        return poll;
-      }
+    // --------------------------------
+    // UPDATE SHARED POLL RESULTS
+    // --------------------------------
 
-      return {
-        ...poll,
-        yesVotes:
-          selected === 'Yes'
-            ? poll.yesVotes + 1
-            : poll.yesVotes,
-        noVotes:
-          selected === 'No'
-            ? poll.noVotes + 1
-            : poll.noVotes,
-      };
-    });
+    const updatedPolls =
+      polls.map((poll) => {
+        if (poll.id !== pollId) {
+          return poll;
+        }
+
+        return {
+          ...poll,
+
+          yesVotes:
+            selected === 'Yes'
+              ? poll.yesVotes + 1
+              : poll.yesVotes,
+
+          noVotes:
+            selected === 'No'
+              ? poll.noVotes + 1
+              : poll.noVotes,
+        };
+      });
+
+    // --------------------------------
+    // UPDATE THIS USER'S VOTE STATE
+    // --------------------------------
 
     const updatedVotedPolls = [
       ...votedPolls,
@@ -142,19 +252,39 @@ export default function PollsScreen() {
 
     // Update screen
     setPolls(updatedPolls);
-    setVotedPolls(updatedVotedPolls);
-    setSelectedOptions(updatedSelectedOptions);
+    setVotedPolls(
+      updatedVotedPolls,
+    );
+    setSelectedOptions(
+      updatedSelectedOptions,
+    );
 
-    // Save permanently
-    await saveData(POLLS_KEY, updatedPolls);
+    // --------------------------------
+    // SAVE SHARED POLL RESULTS
+    // --------------------------------
 
     await saveData(
-      VOTED_POLLS_KEY,
+      POLLS_KEY,
+      updatedPolls,
+    );
+
+    // --------------------------------
+    // SAVE USER-SPECIFIC VOTE STATE
+    // --------------------------------
+
+    const userVotedPollsKey =
+      `votedPolls_${userEmail}`;
+
+    const userSelectedOptionsKey =
+      `selectedPollOptions_${userEmail}`;
+
+    await saveData(
+      userVotedPollsKey,
       updatedVotedPolls,
     );
 
     await saveData(
-      SELECTED_OPTIONS_KEY,
+      userSelectedOptionsKey,
       updatedSelectedOptions,
     );
 
@@ -166,31 +296,41 @@ export default function PollsScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Polls</Text>
+      <Text style={styles.title}>
+        Polls
+      </Text>
 
       <Text style={styles.subtitle}>
         Give your opinion on society matters
       </Text>
 
       {polls.map((poll) => {
-        const selected = selectedOptions[poll.id];
-        const hasVoted = votedPolls.includes(poll.id);
+        const selected =
+          selectedOptions[poll.id];
+
+        const hasVoted =
+          votedPolls.includes(poll.id);
 
         const totalVotes =
-          poll.yesVotes + poll.noVotes;
+          poll.yesVotes +
+          poll.noVotes;
 
         const yesPercentage =
           totalVotes === 0
             ? 0
             : Math.round(
-                (poll.yesVotes / totalVotes) * 100,
+                (poll.yesVotes /
+                  totalVotes) *
+                  100,
               );
 
         const noPercentage =
           totalVotes === 0
             ? 0
             : Math.round(
-                (poll.noVotes / totalVotes) * 100,
+                (poll.noVotes /
+                  totalVotes) *
+                  100,
               );
 
         return (
@@ -218,7 +358,10 @@ export default function PollsScreen() {
                   styles.selectedOption,
               ]}
               onPress={() =>
-                selectOption(poll.id, 'Yes')
+                selectOption(
+                  poll.id,
+                  'Yes',
+                )
               }
               disabled={hasVoted}
             >
@@ -241,7 +384,10 @@ export default function PollsScreen() {
                   styles.selectedOption,
               ]}
               onPress={() =>
-                selectOption(poll.id, 'No')
+                selectOption(
+                  poll.id,
+                  'No',
+                )
               }
               disabled={hasVoted}
             >
@@ -261,16 +407,24 @@ export default function PollsScreen() {
               <Pressable
                 style={styles.voteButton}
                 onPress={() =>
-                  submitVote(poll.id)
+                  submitVote(
+                    poll.id,
+                  )
                 }
               >
-                <Text style={styles.voteText}>
+                <Text
+                  style={styles.voteText}
+                >
                   Submit Vote
                 </Text>
               </Pressable>
             ) : (
-              <View style={styles.votedBadge}>
-                <Text style={styles.votedText}>
+              <View
+                style={styles.votedBadge}
+              >
+                <Text
+                  style={styles.votedText}
+                >
                   ✓ Vote Submitted
                 </Text>
               </View>
@@ -278,24 +432,42 @@ export default function PollsScreen() {
 
             {/* RESULTS */}
             {hasVoted && (
-              <View style={styles.resultsContainer}>
-                <Text style={styles.resultsTitle}>
+              <View
+                style={
+                  styles.resultsContainer
+                }
+              >
+                <Text
+                  style={styles.resultsTitle}
+                >
                   Current Results
                 </Text>
 
-                <View style={styles.resultRow}>
-                  <Text style={styles.resultLabel}>
+                <View
+                  style={styles.resultRow}
+                >
+                  <Text
+                    style={
+                      styles.resultLabel
+                    }
+                  >
                     Yes
                   </Text>
 
-                  <Text style={styles.resultValue}>
+                  <Text
+                    style={
+                      styles.resultValue
+                    }
+                  >
                     {poll.yesVotes} votes (
                     {yesPercentage}%)
                   </Text>
                 </View>
 
                 <View
-                  style={styles.resultBarBackground}
+                  style={
+                    styles.resultBarBackground
+                  }
                 >
                   <View
                     style={[
@@ -307,19 +479,31 @@ export default function PollsScreen() {
                   />
                 </View>
 
-                <View style={styles.resultRow}>
-                  <Text style={styles.resultLabel}>
+                <View
+                  style={styles.resultRow}
+                >
+                  <Text
+                    style={
+                      styles.resultLabel
+                    }
+                  >
                     No
                   </Text>
 
-                  <Text style={styles.resultValue}>
+                  <Text
+                    style={
+                      styles.resultValue
+                    }
+                  >
                     {poll.noVotes} votes (
                     {noPercentage}%)
                   </Text>
                 </View>
 
                 <View
-                  style={styles.resultBarBackground}
+                  style={
+                    styles.resultBarBackground
+                  }
                 >
                   <View
                     style={[

@@ -9,7 +9,11 @@ import {
 
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import { getData, saveData } from '../data/storage';
+
+import {
+  getData,
+  saveData,
+} from '../data/storage';
 
 type AccountData = {
   name: string;
@@ -22,149 +26,205 @@ type AccountData = {
 const ACCOUNT_KEY = 'accountData';
 const LOGIN_KEY = 'isLoggedIn';
 const ROLE_KEY = 'userRole';
+const PROFILE_KEY = 'profileData';
 
-const ADMIN_EMAIL = 'admin@societyhub.com';
-const ADMIN_PASSWORD = 'admin123';
+const ADMIN_EMAIL =
+  'admin@societyhub.com';
+
+const ADMIN_PASSWORD =
+  'admin123';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loggingIn, setLoggingIn] = useState(false);
+  const [email, setEmail] =
+    useState('');
+
+  const [password, setPassword] =
+    useState('');
+
+  const [loggingIn, setLoggingIn] =
+    useState(false);
 
   const handleLogin = async () => {
     if (loggingIn) {
       return;
     }
 
-    // Check empty fields
-    if (!email.trim() || !password.trim()) {
+    const enteredEmail =
+      email.trim().toLowerCase();
+
+    const enteredPassword =
+      password;
+
+    // ========================================
+    // VALIDATION
+    // ========================================
+
+    if (
+      !enteredEmail ||
+      !enteredPassword
+    ) {
       Alert.alert(
         'Missing Details',
         'Please enter your email and password.',
       );
+
       return;
     }
 
     setLoggingIn(true);
 
-    const enteredEmail = email.trim().toLowerCase();
+    try {
+      // ========================================
+      // ADMIN LOGIN
+      // ========================================
 
-    // --------------------------------
-    // ADMIN LOGIN
-    // --------------------------------
-    if (
-      enteredEmail === ADMIN_EMAIL &&
-      password === ADMIN_PASSWORD
-    ) {
-      await saveData(LOGIN_KEY, true);
-      await saveData(ROLE_KEY, 'admin');
+      if (
+        enteredEmail === ADMIN_EMAIL &&
+        enteredPassword === ADMIN_PASSWORD
+      ) {
+        await saveData(
+          LOGIN_KEY,
+          true
+        );
 
-      setLoggingIn(false);
+        await saveData(
+          ROLE_KEY,
+          'admin'
+        );
 
-      Alert.alert(
-        'Admin Login Successful',
-        'Welcome to the SocietyHub Admin Dashboard!',
-        [
-          {
-            text: 'Continue',
-            onPress: () => router.replace('/admin'),
-          },
-        ],
-      );
+        router.replace('/admin');
 
-      return;
-    }
+        return;
+      }
 
-    // --------------------------------
-    // RESIDENT LOGIN
-    // --------------------------------
+      // ========================================
+      // GET ACCOUNTS
+      // ========================================
 
-    // Get registered resident account
-    const account =
-      await getData<AccountData>(ACCOUNT_KEY);
+      const storedData =
+        await getData<
+          AccountData | AccountData[]
+        >(ACCOUNT_KEY);
 
-    // No account found
-    if (!account) {
-      setLoggingIn(false);
+      let accounts: AccountData[] = [];
 
-      Alert.alert(
-        'Account Not Found',
-        'No account has been registered yet. Please create an account first.',
-      );
+      // Support old single-account format
+      // and new multi-account format.
 
-      return;
-    }
+      if (Array.isArray(storedData)) {
+        accounts = storedData;
+      } else if (storedData) {
+        accounts = [storedData];
+      }
 
-    // Check email
-    if (
-      enteredEmail !==
-      account.email.toLowerCase()
-    ) {
-      setLoggingIn(false);
+      // ========================================
+      // FIND LOGIN ACCOUNT
+      // ========================================
 
-      Alert.alert(
-        'Login Failed',
-        'The email address is incorrect.',
-      );
+      const account =
+        accounts.find(
+          (item) =>
+            item.email
+              .trim()
+              .toLowerCase() ===
+            enteredEmail
+        );
 
-      return;
-    }
+      // ========================================
+      // ACCOUNT NOT FOUND
+      // ========================================
 
-    // Check password
-    if (password !== account.password) {
-      setLoggingIn(false);
+      if (!account) {
+        Alert.alert(
+          'Login Failed',
+          'No account exists with this email address.',
+        );
 
-      Alert.alert(
-        'Login Failed',
-        'The password is incorrect.',
-      );
+        return;
+      }
 
-      return;
-    }
+      // ========================================
+      // PASSWORD CHECK
+      // ========================================
 
-    // Existing accounts without a role
-    // are treated as residents
-    const role = account.role ?? 'resident';
+      if (
+        enteredPassword !==
+        account.password
+      ) {
+        Alert.alert(
+          'Login Failed',
+          'The password is incorrect.',
+        );
 
-    // Prevent any unexpected admin account
-    // from entering the resident flow
-    if (role === 'admin') {
-      await saveData(LOGIN_KEY, true);
-      await saveData(ROLE_KEY, 'admin');
+        return;
+      }
 
-      setLoggingIn(false);
+      // ========================================
+      // GET ROLE
+      // ========================================
 
-      Alert.alert(
-        'Admin Login Successful',
-        `Welcome back, ${account.name}!`,
-        [
-          {
-            text: 'Continue',
-            onPress: () => router.replace('/admin'),
-          },
-        ],
-      );
+      const role =
+        account.role ?? 'resident';
 
-      return;
-    }
+      // ========================================
+      // SAVE CURRENT USER PROFILE
+      // ========================================
 
-    // Resident login successful
-    await saveData(LOGIN_KEY, true);
-    await saveData(ROLE_KEY, 'resident');
-
-    setLoggingIn(false);
-
-    Alert.alert(
-      'Login Successful',
-      `Welcome back, ${account.name}!`,
-      [
+      await saveData(
+        PROFILE_KEY,
         {
-          text: 'Continue',
-          onPress: () =>
-            router.replace('/(tabs)/home'),
-        },
-      ],
-    );
+          name: account.name,
+          email: account.email,
+          flat: account.flat,
+        }
+      );
+
+      // ========================================
+      // SAVE LOGIN SESSION
+      // ========================================
+
+      await saveData(
+        LOGIN_KEY,
+        true
+      );
+
+      await saveData(
+        ROLE_KEY,
+        role
+      );
+
+      // ========================================
+      // ADMIN ACCOUNT
+      // ========================================
+
+      if (role === 'admin') {
+        router.replace('/admin');
+
+        return;
+      }
+
+      // ========================================
+      // RESIDENT ACCOUNT
+      // ========================================
+
+      router.replace(
+        '/(tabs)/home'
+      );
+
+    } catch (error) {
+      console.log(
+        'Login error:',
+        error
+      );
+
+      Alert.alert(
+        'Login Error',
+        'Something went wrong while logging in. Please try again.',
+      );
+
+    } finally {
+      setLoggingIn(false);
+    }
   };
 
   return (
@@ -184,7 +244,8 @@ export default function LoginScreen() {
 
       <View style={styles.form}>
 
-        {/* Email */}
+        {/* EMAIL */}
+
         <Text style={styles.label}>
           Email
         </Text>
@@ -197,10 +258,12 @@ export default function LoginScreen() {
           placeholderTextColor="#94A3B8"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
           editable={!loggingIn}
         />
 
-        {/* Password */}
+        {/* PASSWORD */}
+
         <Text style={styles.label}>
           Password
         </Text>
@@ -215,11 +278,13 @@ export default function LoginScreen() {
           editable={!loggingIn}
         />
 
-        {/* Login */}
+        {/* LOGIN */}
+
         <Pressable
           style={[
             styles.button,
-            loggingIn && styles.disabledButton,
+            loggingIn &&
+              styles.disabledButton,
           ]}
           onPress={handleLogin}
           disabled={loggingIn}
@@ -233,8 +298,10 @@ export default function LoginScreen() {
 
       </View>
 
-      {/* Register */}
+      {/* REGISTER */}
+
       <View style={styles.registerContainer}>
+
         <Text style={styles.registerText}>
           Don't have an account?{' '}
         </Text>
@@ -245,6 +312,7 @@ export default function LoginScreen() {
         >
           Register
         </Link>
+
       </View>
 
     </View>
@@ -339,4 +407,4 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-});     
+});

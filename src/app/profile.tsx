@@ -6,8 +6,8 @@ import {
   ScrollView,
 } from 'react-native';
 
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { getData, removeData } from '../data/storage';
 
 type ProfileData = {
@@ -29,19 +29,23 @@ export default function ProfileScreen() {
   const [profile, setProfile] =
     useState<ProfileData>(defaultProfile);
 
-  // Load saved profile
-  useEffect(() => {
-    const loadProfile = async () => {
-      const savedProfile =
-        await getData<ProfileData>(PROFILE_KEY);
+  // Load profile every time this screen becomes active
+  useFocusEffect(
+    useCallback(() => {
+      const loadProfile = async () => {
+        const savedProfile =
+          await getData<ProfileData>(PROFILE_KEY);
 
-      if (savedProfile) {
-        setProfile(savedProfile);
-      }
-    };
+        if (savedProfile) {
+          setProfile(savedProfile);
+        } else {
+          setProfile(defaultProfile);
+        }
+      };
 
-    loadProfile();
-  }, []);
+      loadProfile();
+    }, [])
+  );
 
   // Logout
   const handleLogout = async () => {
@@ -52,7 +56,9 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>My Profile</Text>
+      <Text style={styles.title}>
+        My Profile
+      </Text>
 
       <Text style={styles.subtitle}>
         Your account details
@@ -60,7 +66,9 @@ export default function ProfileScreen() {
 
       {/* Profile Card */}
       <View style={styles.profileCard}>
-        <Text style={styles.avatar}>👤</Text>
+        <Text style={styles.avatar}>
+          👤
+        </Text>
 
         <Text style={styles.name}>
           {profile.name}

@@ -8,9 +8,23 @@ import {
   Alert,
 } from 'react-native';
 
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { getData, saveData } from '../data/storage';
+import {
+  router,
+  useLocalSearchParams,
+  useFocusEffect,
+} from 'expo-router';
+
+import {
+  useCallback,
+  useState,
+} from 'react';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import {
+  getData,
+  saveData,
+} from '../data/storage';
 
 type Booking = {
   id: string;
@@ -19,7 +33,14 @@ type Booking = {
   time: string;
 };
 
-const BOOKINGS_KEY = 'facilityBookings';
+type ProfileData = {
+  name: string;
+  email: string;
+  flat: string;
+};
+
+const PROFILE_KEY = 'profileData';
+const BOOKING_PREFIX = 'facilityBookings_';
 
 export default function BookingScreen() {
   const params = useLocalSearchParams();
@@ -31,89 +52,227 @@ export default function BookingScreen() {
 
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] =
+    useState<Booking[]>([]);
+  const [userEmail, setUserEmail] =
+    useState('');
 
-  // Load saved bookings
-  useEffect(() => {
-    const loadBookings = async () => {
-      const savedBookings =
-        await getData<Booking[]>(BOOKINGS_KEY);
+  // ========================================
+  // LOAD CURRENT USER BOOKINGS
+  // ========================================
 
-      if (savedBookings) {
-        setBookings(savedBookings);
-      }
-    };
+  useFocusEffect(
+    useCallback(() => {
+      const loadBookings = async () => {
+        const profile =
+          await getData<ProfileData>(
+            PROFILE_KEY
+          );
 
-    loadBookings();
-  }, []);
+        const email =
+          profile?.email
+            ?.trim()
+            .toLowerCase() || '';
+
+        setUserEmail(email);
+
+        if (!email) {
+          setBookings([]);
+          return;
+        }
+
+        const bookingsKey =
+          `${BOOKING_PREFIX}${email}`;
+
+        const savedBookings =
+          await getData<Booking[]>(
+            bookingsKey
+          );
+
+        if (savedBookings) {
+          setBookings(savedBookings);
+        } else {
+          setBookings([]);
+        }
+      };
+
+      loadBookings();
+    }, [])
+  );
+
+  // ========================================
+  // CONFIRM BOOKING
+  // ========================================
 
   const confirmBooking = async () => {
-    if (!date.trim() || !time.trim()) {
+    if (!userEmail) {
+      Alert.alert(
+        'Login Required',
+        'Please login before booking a facility.'
+      );
+
+      return;
+    }
+
+    if (
+      !date.trim() ||
+      !time.trim()
+    ) {
       Alert.alert(
         'Missing Details',
-        'Please enter both date and time.',
+        'Please enter both date and time.'
       );
+
       return;
     }
 
-    // Check for duplicate booking
-    const alreadyBooked = bookings.some(
-      (booking) =>
-        booking.facility === facility &&
-        booking.date.toLowerCase() ===
-          date.trim().toLowerCase() &&
-        booking.time.toLowerCase() ===
-          time.trim().toLowerCase(),
-    );
+    const bookingDate =
+      date.trim().toLowerCase();
 
-    if (alreadyBooked) {
+    const bookingTime =
+      time.trim().toLowerCase();
+
+    const bookingFacility =
+      facility.trim().toLowerCase();
+
+    try {
+      // ========================================
+      // CHECK ALL RESIDENT BOOKINGS
+      // ========================================
+
+      const allKeys =
+        await AsyncStorage.getAllKeys();
+
+      const bookingKeys =
+        allKeys.filter((key) =>
+          key.startsWith(BOOKING_PREFIX)
+        );
+
+      let facilityAlreadyBooked =
+        false;
+
+      for (const key of bookingKeys) {
+        const residentBookings =
+          await getData<Booking[]>(key);
+
+        if (!residentBookings) {
+          continue;
+        }
+
+        const conflict =
+          residentBookings.some(
+            (booking) =>
+              booking.facility
+                .trim()
+                .toLowerCase() ===
+                bookingFacility &&
+              booking.date
+                .trim()
+                .toLowerCase() ===
+                bookingDate &&
+              booking.time
+                .trim()
+                .toLowerCase() ===
+                bookingTime
+          );
+
+        if (conflict) {
+          facilityAlreadyBooked = true;
+          break;
+        }
+      }
+
+      // ========================================
+      // PREVENT DUPLICATE BOOKING
+      // ========================================
+
+      if (facilityAlreadyBooked) {
+        Alert.alert(
+          'Facility Already Booked',
+          `${facility} is already booked for ${date.trim()} at ${time.trim()}.\n\nPlease choose another date or time.`
+        );
+
+        return;
+      }
+
+      // ========================================
+      // CREATE NEW BOOKING
+      // ========================================
+
+      const newBooking: Booking = {
+        id: `BOOK-${Date.now()}`,
+        facility: facility,
+        date: date.trim(),
+        time: time.trim(),
+      };
+
+      const updatedBookings = [
+        newBooking,
+        ...bookings,
+      ];
+
+      // Update screen
+      setBookings(updatedBookings);
+
+      // Save only for current user
+      const bookingsKey =
+        `${BOOKING_PREFIX}${userEmail}`;
+
+      await saveData(
+        bookingsKey,
+        updatedBookings
+      );
+
+      // Clear inputs
+      setDate('');
+      setTime('');
+
+      // Success message
       Alert.alert(
-        'Already Booked',
-        `You already have a booking for ${facility} at this date and time.`,
+        'Booking Confirmed',
+        `${facility} has been booked successfully.\n\nDate: ${newBooking.date}\nTime: ${newBooking.time}`
       );
-      return;
+
+    } catch (error) {
+      console.log(
+        'Error checking booking:',
+        error
+      );
+
+      Alert.alert(
+        'Booking Error',
+        'Unable to check facility availability. Please try again.'
+      );
     }
-
-    const newBooking: Booking = {
-      id: `BOOK-${Date.now()}`,
-      facility,
-      date: date.trim(),
-      time: time.trim(),
-    };
-
-    const updatedBookings = [
-      newBooking,
-      ...bookings,
-    ];
-
-    // Update screen
-    setBookings(updatedBookings);
-
-    // Save permanently
-    await saveData(
-      BOOKINGS_KEY,
-      updatedBookings,
-    );
-
-    setDate('');
-    setTime('');
-
-    Alert.alert(
-      'Booking Confirmed',
-      `${facility} has been booked successfully.\n\nDate: ${newBooking.date}\nTime: ${newBooking.time}`,
-    );
   };
 
+  // ========================================
+  // UI
+  // ========================================
+
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Book Facility</Text>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+    >
+
+      {/* HEADER */}
+
+      <Text style={styles.title}>
+        Book Facility
+      </Text>
 
       <Text style={styles.subtitle}>
         Reserve a society facility
       </Text>
 
+      {/* FACILITY CARD */}
+
       <View style={styles.facilityCard}>
-        <Text style={styles.icon}>🏢</Text>
+
+        <Text style={styles.icon}>
+          🏢
+        </Text>
 
         <Text style={styles.facilityTitle}>
           {facility}
@@ -122,10 +281,18 @@ export default function BookingScreen() {
         <Text style={styles.facilitySubtitle}>
           Select your preferred date and time
         </Text>
+
       </View>
 
+      {/* BOOKING FORM */}
+
       <View style={styles.form}>
-        <Text style={styles.label}>Date</Text>
+
+        {/* DATE */}
+
+        <Text style={styles.label}>
+          Date
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -135,7 +302,11 @@ export default function BookingScreen() {
           placeholderTextColor="#94A3B8"
         />
 
-        <Text style={styles.label}>Time</Text>
+        {/* TIME */}
+
+        <Text style={styles.label}>
+          Time
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -145,6 +316,8 @@ export default function BookingScreen() {
           placeholderTextColor="#94A3B8"
         />
 
+        {/* CONFIRM */}
+
         <Pressable
           style={styles.confirmButton}
           onPress={confirmBooking}
@@ -153,43 +326,65 @@ export default function BookingScreen() {
             Confirm Booking
           </Text>
         </Pressable>
+
       </View>
 
-      {/* Saved Bookings */}
+      {/* MY BOOKINGS */}
+
       {bookings.length > 0 && (
         <View style={styles.bookingsSection}>
+
           <Text style={styles.sectionTitle}>
             My Bookings
           </Text>
 
           {bookings.map((booking) => (
+
             <View
               style={styles.bookingCard}
               key={booking.id}
             >
-              <Text style={styles.bookingFacility}>
+
+              <Text
+                style={styles.bookingFacility}
+              >
                 🏢 {booking.facility}
               </Text>
 
-              <View style={styles.divider} />
+              <View
+                style={styles.divider}
+              />
 
-              <Text style={styles.bookingDetail}>
+              <Text
+                style={styles.bookingDetail}
+              >
                 📅 {booking.date}
               </Text>
 
-              <Text style={styles.bookingDetail}>
+              <Text
+                style={styles.bookingDetail}
+              >
                 🕐 {booking.time}
               </Text>
 
-              <View style={styles.confirmedBadge}>
-                <Text style={styles.confirmedText}>
+              <View
+                style={styles.confirmedBadge}
+              >
+                <Text
+                  style={styles.confirmedText}
+                >
                   ✓ Booking Confirmed
                 </Text>
               </View>
+
             </View>
+
           ))}
+
         </View>
       )}
+
+      {/* BACK */}
 
       <Pressable
         style={styles.backButton}
@@ -199,9 +394,14 @@ export default function BookingScreen() {
           ← Back
         </Text>
       </Pressable>
+
     </ScrollView>
   );
 }
+
+// ========================================
+// STYLES
+// ========================================
 
 const styles = StyleSheet.create({
   container: {
@@ -273,6 +473,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#FFFFFF',
     marginBottom: 22,
+    color: '#0F172A',
   },
 
   confirmButton: {
