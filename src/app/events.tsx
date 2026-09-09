@@ -6,8 +6,20 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { useEffect, useState } from 'react';
-import { getData, saveData } from '../data/storage';
+
+import {
+  useCallback,
+  useState,
+} from 'react';
+
+import {
+  useFocusEffect,
+} from 'expo-router';
+
+import {
+  getData,
+  saveData,
+} from '../data/storage';
 
 type Event = {
   id: number;
@@ -21,7 +33,8 @@ type Event = {
 };
 
 const EVENTS_KEY = 'events';
-const REGISTERED_EVENTS_KEY = 'registeredEvents';
+const REGISTERED_EVENTS_KEY =
+  'registeredEvents';
 
 const initialEvents: Event[] = [
   {
@@ -60,39 +73,70 @@ const initialEvents: Event[] = [
 ];
 
 export default function EventsScreen() {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [registeredEvents, setRegisteredEvents] = useState<number[]>([]);
+  const [events, setEvents] =
+    useState<Event[]>([]);
 
-  // Load saved event data
-  useEffect(() => {
-    const loadEventData = async () => {
-      const savedEvents = await getData<Event[]>(EVENTS_KEY);
-      const savedRegisteredEvents =
-        await getData<number[]>(REGISTERED_EVENTS_KEY);
+  const [
+    registeredEvents,
+    setRegisteredEvents,
+  ] = useState<number[]>([]);
 
-      if (savedEvents) {
-        setEvents(savedEvents);
-      } else {
-        setEvents(initialEvents);
-        await saveData(EVENTS_KEY, initialEvents);
-      }
+  // Load whenever screen becomes active
+  useFocusEffect(
+    useCallback(() => {
+      const loadEventData = async () => {
+        const savedEvents =
+          await getData<Event[]>(
+            EVENTS_KEY,
+          );
 
-      if (savedRegisteredEvents) {
-        setRegisteredEvents(savedRegisteredEvents);
-      }
-    };
+        const savedRegisteredEvents =
+          await getData<number[]>(
+            REGISTERED_EVENTS_KEY,
+          );
 
-    loadEventData();
-  }, []);
+        if (savedEvents) {
+          setEvents(savedEvents);
+        } else {
+          setEvents(initialEvents);
 
-  const registerForEvent = async (eventId: number) => {
-    if (registeredEvents.includes(eventId)) {
+          await saveData(
+            EVENTS_KEY,
+            initialEvents,
+          );
+        }
+
+        if (savedRegisteredEvents) {
+          setRegisteredEvents(
+            savedRegisteredEvents,
+          );
+        } else {
+          setRegisteredEvents([]);
+        }
+      };
+
+      loadEventData();
+    }, [])
+  );
+
+  // --------------------------------
+  // REGISTER FOR EVENT
+  // --------------------------------
+
+  const registerForEvent = async (
+    eventId: number,
+  ) => {
+    if (
+      registeredEvents.includes(eventId)
+    ) {
       return;
     }
 
-    const selectedEvent = events.find(
-      (event) => event.id === eventId,
-    );
+    const selectedEvent =
+      events.find(
+        (event) =>
+          event.id === eventId,
+      );
 
     if (!selectedEvent) {
       return;
@@ -103,26 +147,32 @@ export default function EventsScreen() {
       eventId,
     ];
 
-    const updatedEvents = events.map((event) =>
-      event.id === eventId
-        ? {
-            ...event,
-            registered: event.registered + 1,
-          }
-        : event,
+    const updatedEvents =
+      events.map((event) =>
+        event.id === eventId
+          ? {
+              ...event,
+              registered:
+                event.registered + 1,
+            }
+          : event,
+      );
+
+    setRegisteredEvents(
+      updatedRegisteredEvents,
     );
 
-    // Update screen
-    setRegisteredEvents(updatedRegisteredEvents);
     setEvents(updatedEvents);
 
-    // Save permanently
     await saveData(
       REGISTERED_EVENTS_KEY,
       updatedRegisteredEvents,
     );
 
-    await saveData(EVENTS_KEY, updatedEvents);
+    await saveData(
+      EVENTS_KEY,
+      updatedEvents,
+    );
 
     Alert.alert(
       'Registration Successful',
@@ -131,8 +181,13 @@ export default function EventsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Events</Text>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.title}>
+        Events
+      </Text>
 
       <Text style={styles.subtitle}>
         Upcoming society events
@@ -140,10 +195,15 @@ export default function EventsScreen() {
 
       {events.map((event) => {
         const isRegistered =
-          registeredEvents.includes(event.id);
+          registeredEvents.includes(
+            event.id,
+          );
 
         return (
-          <View style={styles.card} key={event.id}>
+          <View
+            style={styles.card}
+            key={event.id}
+          >
             <Text style={styles.date}>
               {event.emoji} {event.date}
             </Text>
@@ -166,8 +226,11 @@ export default function EventsScreen() {
               </Text>
             </View>
 
-            <Text style={styles.participants}>
-              👥 {event.registered} residents registered
+            <Text
+              style={styles.participants}
+            >
+              👥 {event.registered} residents
+              registered
             </Text>
 
             <Pressable
@@ -176,7 +239,11 @@ export default function EventsScreen() {
                 isRegistered &&
                   styles.registeredButton,
               ]}
-              onPress={() => registerForEvent(event.id)}
+              onPress={() =>
+                registerForEvent(
+                  event.id,
+                )
+              }
               disabled={isRegistered}
             >
               <Text
@@ -195,19 +262,22 @@ export default function EventsScreen() {
         );
       })}
 
-      <Pressable
-        style={styles.viewButton}
-        onPress={() =>
-          Alert.alert(
-            'All Events',
-            'You are viewing all available society events.',
-          )
-        }
-      >
-        <Text style={styles.buttonText}>
-          View All Events
-        </Text>
-      </Pressable>
+      {events.length === 0 && (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyIcon}>
+            📅
+          </Text>
+
+          <Text style={styles.emptyTitle}>
+            No Upcoming Events
+          </Text>
+
+          <Text style={styles.emptyText}>
+            There are currently no upcoming society
+            events.
+          </Text>
+        </View>
+      )}
 
       <View style={styles.bottomSpace} />
     </ScrollView>
@@ -305,16 +375,35 @@ const styles = StyleSheet.create({
     color: '#16A34A',
   },
 
-  viewButton: {
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: '#2563EB',
-    justifyContent: 'center',
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 20,
+    padding: 30,
     alignItems: 'center',
-    marginTop: 5,
+  },
+
+  emptyIcon: {
+    fontSize: 42,
+    marginBottom: 12,
+  },
+
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+
+  emptyText: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 
   bottomSpace: {
-    height: 40,
+    height: 50,
   },
 });

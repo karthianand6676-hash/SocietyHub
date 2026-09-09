@@ -16,6 +16,7 @@ type AccountData = {
   email: string;
   flat: string;
   password: string;
+  role: 'resident' | 'admin';
 };
 
 type ProfileData = {
@@ -82,11 +83,13 @@ export default function RegisterScreen() {
       return;
     }
 
+    // Create resident account
     const account: AccountData = {
       name: name.trim(),
       email: email.trim().toLowerCase(),
       flat: flat.trim().toUpperCase(),
       password,
+      role: 'resident',
     };
 
     const profile: ProfileData = {

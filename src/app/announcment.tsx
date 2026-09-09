@@ -6,8 +6,9 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
-import { useEffect, useState } from 'react';
-import { router } from 'expo-router';
+
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { getData, saveData } from '../data/storage';
 
 type Announcement = {
@@ -18,6 +19,7 @@ type Announcement = {
   priority: 'Important' | 'Normal';
 };
 
+const ANNOUNCEMENTS_KEY = 'announcements';
 const READ_ANNOUNCEMENTS_KEY = 'readAnnouncements';
 
 const initialAnnouncements: Announcement[] = [
@@ -48,41 +50,66 @@ const initialAnnouncements: Announcement[] = [
 ];
 
 export default function AnnouncementsScreen() {
-  const [announcements] =
-    useState<Announcement[]>(initialAnnouncements);
+  const [announcements, setAnnouncements] =
+    useState<Announcement[]>([]);
 
   const [readAnnouncements, setReadAnnouncements] =
     useState<number[]>([]);
 
-  // Load saved read status
-  useEffect(() => {
-    const loadReadAnnouncements = async () => {
-      const savedReadAnnouncements =
-        await getData<number[]>(
-          READ_ANNOUNCEMENTS_KEY,
-        );
+  useFocusEffect(
+    useCallback(() => {
+      const loadAnnouncements = async () => {
+        // Load announcements
+        const savedAnnouncements =
+          await getData<Announcement[]>(
+            ANNOUNCEMENTS_KEY,
+          );
 
-      if (savedReadAnnouncements) {
-        setReadAnnouncements(savedReadAnnouncements);
-      }
-    };
+        if (savedAnnouncements) {
+          setAnnouncements(savedAnnouncements);
+        } else {
+          setAnnouncements(initialAnnouncements);
 
-    loadReadAnnouncements();
-  }, []);
+          await saveData(
+            ANNOUNCEMENTS_KEY,
+            initialAnnouncements,
+          );
+        }
+
+        // Load read status
+        const savedReadAnnouncements =
+          await getData<number[]>(
+            READ_ANNOUNCEMENTS_KEY,
+          );
+
+        if (savedReadAnnouncements) {
+          setReadAnnouncements(
+            savedReadAnnouncements,
+          );
+        }
+      };
+
+      loadAnnouncements();
+    }, [])
+  );
 
   const openAnnouncement = async (
     announcement: Announcement,
   ) => {
-    if (!readAnnouncements.includes(announcement.id)) {
+    if (
+      !readAnnouncements.includes(
+        announcement.id,
+      )
+    ) {
       const updatedReadAnnouncements = [
         ...readAnnouncements,
         announcement.id,
       ];
 
-      // Update screen
-      setReadAnnouncements(updatedReadAnnouncements);
+      setReadAnnouncements(
+        updatedReadAnnouncements,
+      );
 
-      // Save permanently
       await saveData(
         READ_ANNOUNCEMENTS_KEY,
         updatedReadAnnouncements,
@@ -96,17 +123,27 @@ export default function AnnouncementsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Announcements</Text>
+    <ScrollView
+      style={styles.container}
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={styles.title}>
+        Announcements
+      </Text>
 
       <Text style={styles.subtitle}>
         Society announcements and important updates
       </Text>
 
+      <Text style={styles.sectionTitle}>
+        Latest Announcements
+      </Text>
+
       {announcements.map((announcement) => {
-        const isRead = readAnnouncements.includes(
-          announcement.id,
-        );
+        const isRead =
+          readAnnouncements.includes(
+            announcement.id,
+          );
 
         return (
           <Pressable
@@ -127,7 +164,8 @@ export default function AnnouncementsScreen() {
               <View
                 style={[
                   styles.priorityBadge,
-                  announcement.priority === 'Important'
+                  announcement.priority ===
+                    'Important'
                     ? styles.importantBadge
                     : styles.normalBadge,
                 ]}
@@ -135,7 +173,8 @@ export default function AnnouncementsScreen() {
                 <Text
                   style={[
                     styles.priorityText,
-                    announcement.priority === 'Important'
+                    announcement.priority ===
+                      'Important'
                       ? styles.importantText
                       : styles.normalText,
                   ]}
@@ -161,24 +200,34 @@ export default function AnnouncementsScreen() {
               <Text
                 style={[
                   styles.readStatus,
-                  isRead && styles.readStatusDone,
+                  isRead &&
+                    styles.readStatusDone,
                 ]}
               >
-                {isRead ? '✓ Read' : '● Unread'}
+                {isRead
+                  ? '✓ Read'
+                  : '● Unread'}
               </Text>
             </View>
           </Pressable>
         );
       })}
 
-      <Pressable
-        style={styles.backButton}
-        onPress={() => router.back()}
-      >
-        <Text style={styles.backText}>
-          ← Back
-        </Text>
-      </Pressable>
+      {announcements.length === 0 && (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyIcon}>
+            📢
+          </Text>
+
+          <Text style={styles.emptyTitle}>
+            No Announcements
+          </Text>
+
+          <Text style={styles.emptyText}>
+            There are currently no announcements.
+          </Text>
+        </View>
+      )}
 
       <View style={styles.bottomSpace} />
     </ScrollView>
@@ -203,7 +252,15 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 18,
     color: '#64748B',
+    lineHeight: 25,
     marginBottom: 30,
+  },
+
+  sectionTitle: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 20,
   },
 
   card: {
@@ -296,18 +353,34 @@ const styles = StyleSheet.create({
     color: '#16A34A',
   },
 
-  backButton: {
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 20,
+    padding: 30,
     alignItems: 'center',
-    marginTop: 5,
-    marginBottom: 20,
   },
 
-  backText: {
+  emptyIcon: {
+    fontSize: 42,
+    marginBottom: 12,
+  },
+
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+
+  emptyText: {
+    fontSize: 14,
     color: '#64748B',
-    fontSize: 17,
+    textAlign: 'center',
   },
 
   bottomSpace: {
-    height: 40,
+    height: 50,
   },
 });
